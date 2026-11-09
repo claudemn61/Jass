@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<title>Jass</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Jass" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" href="favicon-32.png" sizes="32x32" />
+<meta name="theme-color" content="#0a2c21" />
+<link rel="manifest" href="manifest.json" />
+<style>
+  html, body, #root { margin:0; padding:0; height:100%; }
+  html, body { background:#0a2c21; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  * { -webkit-touch-callout: none; }
+  #load-status { color:#f4c430; font-family:monospace; font-size:11px; padding:14px; white-space:pre-wrap; position:fixed; top:0; left:0; right:0; z-index:99; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js" crossorigin="anonymous"></script>
+<script src="engine.js"></script>
+</head>
+<body>
+<div id="load-status">Lade React/Babel…</div>
+<div id="root"></div>
+<script>
+  // Lädt jass.jsx, kompiliert es zur Laufzeit mit Babel (kein Build-Schritt)
+  // und zeigt Lade-/Laufzeitfehler direkt auf der Seite an.
+  function showError(msg) {
+    const el = document.getElementById("load-status");
+    el.style.display = "block"; el.style.color = "#f87171"; el.textContent = msg;
+  }
+  window.addEventListener("error", function (e) { showError("JS-FEHLER: " + (e.error ? (e.error.stack || e.error.message) : e.message)); });
+  window.addEventListener("unhandledrejection", function (e) { showError("PROMISE-FEHLER: " + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason))); });
+
+  async function start() {
+    const status = document.getElementById("load-status");
+    if (typeof React === "undefined" || typeof ReactDOM === "undefined" || typeof Babel === "undefined") {
+      showError("FEHLER: React/Babel konnte nicht geladen werden (offline beim ersten Start?)"); return;
+    }
+    if (typeof JassEngine === "undefined") { showError("FEHLER: engine.js konnte nicht geladen werden"); return; }
+    let src;
+    try {
+      const resp = await fetch("jass.jsx");
+      if (!resp.ok) { showError("FEHLER beim Laden von jass.jsx: HTTP " + resp.status); return; }
+      src = await resp.text();
+    } catch (e) { showError("FEHLER beim Laden von jass.jsx:\n" + (e.message || e)); return; }
+    let compiled;
+    try {
+      compiled = Babel.transform(src, { presets: ["react"] }).code + "\n//# sourceURL=jass.jsx";
+    } catch (e) { showError("BABEL-KOMPILIER-FEHLER:\n" + (e.message || e)); return; }
+    try {
+      const JassApp = new Function("React", "ReactDOM", compiled + "\n; return JassApp;")(React, ReactDOM);
+      class Boundary extends React.Component {
+        constructor(p) { super(p); this.state = { error: null }; }
+        static getDerivedStateFromError(error) { return { error }; }
+        render() {
+          if (!this.state.error) return this.props.children;
+          const e = this.state.error;
+          return React.createElement("div", { style: { padding: 16, color: "#f87171", fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap" } },
+            "APP-FEHLER:\n\n" + ((e && (e.stack || e.message)) || String(e)) + "\n\n",
+            React.createElement("button", { onClick: function () { try { localStorage.removeItem("jass:game"); } catch (x) {} location.reload(); } }, "Spielstand zurücksetzen und neu laden"));
+        }
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Boundary, null, React.createElement(JassApp)));
+      status.style.display = "none";
+    } catch (e) { showError("RENDER-FEHLER:\n" + (e.stack || e.message || e)); }
+  }
+
+  window.addEventListener("load", function () {
+    start();
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function (e) { console.error("Service Worker:", e); });
+  });
+</script>
+</body>
+</html>
