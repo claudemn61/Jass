@@ -81,6 +81,38 @@ function doPlay(g, p, c) {
   const full = trick.length === 4;
   return { ...g, round: { ...r, hands, trick, stoeckDone, phase: full ? "trickDone" : "play", turn: full ? null : (p + 1) % 4 } };
 }
+// Berg: Punktgrenze, deren erstes Erreichen einen Strich gibt (bei Ziel 2500 = 1500)
+const bergOf = (target) => Math.round((target * 0.6) / 10) * 10;
+
+// Bisher gutgeschriebene Punkte der laufenden Runde (ohne Multiplikator in
+// den Teilen, total mit): gesammelte Stiche, Weis ab dem 1. Stich, Stöck sobald gespielt
+function partialResult(r, mult) {
+  const m = E.multiplier(r.trump, mult);
+  const stoeck = [0, 0];
+  if (r.stoeck != null && r.stoeckDone) stoeck[E.team(r.stoeck)] = 20;
+  const weis = r.trickNo >= 1 && r.weis ? r.weis.pts.slice() : [0, 0];
+  const trick = r.trickPts.slice();
+  return { mult: m, trick, weis, stoeck, match: null, total: [0, 1].map((i) => (trick[i] + weis[i] + stoeck[i]) * m) };
+}
+
+// Runde abschliessen (regulär oder durch Bedanken)
+function finishRound(g, rUpd, res, winner, extra) {
+  const r = { ...g.round, ...rUpd };
+  const scores = [0, 1].map((i) => g.scores[i] + res.total[i]);
+  let berg = g.berg != null ? g.berg : null;
+  if (berg == null) {
+    const lim = bergOf(g.target);
+    const hit = [0, 1].filter((i) => scores[i] >= lim);
+    if (hit.length) berg = hit.length === 1 ? hit[0] : (scores[0] >= scores[1] ? 0 : 1);
+  }
+  const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match };
+  return {
+    ...g, scores, berg, history: g.history.concat([entry]),
+    over: winner != null ? { winner } : null,
+    round: { ...r, trick: [], turn: null, phase: "roundEnd", result: res, ...(extra || {}) },
+  };
+}
+
 function doCollect(g) {
   const r = g.round;
   const w = r.trick[E.trickWinnerIdx(r.trick, r.trump)].p;
@@ -91,30 +123,28 @@ function doCollect(g) {
   const played = r.played.concat(r.trick.map((e) => e.c));
   const lastTrick = { cards: r.trick, winner: w, pts };
   const tricksLog = (r.tricksLog || []).concat([r.trick]);
-  let res, ap, bedankt = null;
-  if (!last) {
-    // Bedanken: erreicht ein Team während der Runde die Zielpunkte
-    // (Reihenfolge Stöck – Weis – Stich), endet das Spiel sofort.
-    const m = E.multiplier(r.trump, g.mult);
-    const stoeck = [0, 0];
-    if (r.stoeck != null && r.stoeckDone) stoeck[E.team(r.stoeck)] = 20;
-    const weis = r.weis ? r.weis.pts.slice() : [0, 0];
-    res = { mult: m, trick: trickPts, weis, stoeck, match: null, total: [0, 1].map((i) => (trickPts[i] + weis[i] + stoeck[i]) * m) };
-    ap = E.applyScore(g.scores, res, g.target);
-    if (ap.winner == null) {
-      return { ...g, round: { ...r, trick: [], turn: w, trickNo: r.trickNo + 1, phase: "play", trickPts, tricks, played, lastTrick, tricksLog } };
-    }
-    bedankt = r.trickNo + 1;
-  } else {
-    res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
-    ap = E.applyScore(g.scores, res, g.target);
+  const upd = { trickPts, tricks, played, lastTrick, tricksLog, trickNo: r.trickNo + 1 };
+  if (last) {
+    const res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
+    const ap = E.applyScore(g.scores, res, g.target);
+    return finishRound(g, upd, res, ap.winner, {});
   }
-  const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match };
-  return {
-    ...g, scores: ap.scores, history: g.history.concat([entry]),
-    over: ap.winner != null ? { winner: ap.winner } : null,
-    round: { ...r, trick: [], turn: null, phase: "roundEnd", trickPts, tricks, played, lastTrick, tricksLog, trickNo: 9, result: res, bedankt },
-  };
+  // Die Gegner (Computer) bedanken sich, sobald sie die Zielpunkte erreicht haben.
+  // Für "Wir" gilt der Knopf «Bedanken».
+  const res = partialResult({ ...r, ...upd }, g.mult);
+  if (g.scores[1] + res.total[1] >= g.target) return finishRound(g, upd, res, 1, { bedankt: upd.trickNo, bedanktVon: 1 });
+  return { ...g, round: { ...r, ...upd, trick: [], turn: w, phase: "play" } };
+}
+
+// «Bedanken» durch dich: stimmt es, gewinnt «Wir», sonst gewinnen die Gegner.
+// Gezählt wird, was bisher gutgeschrieben ist (Stöck, Weis, eingesammelte Stiche).
+function doBedanken(g) {
+  if (g.round.phase === "trickDone") g = doCollect(g);
+  if (g.round.phase !== "play") return g;
+  const r = g.round;
+  const res = partialResult(r, g.mult);
+  const ok = g.scores[0] + res.total[0] >= g.target;
+  return finishRound(g, {}, res, ok ? 0 : 1, { bedankt: r.trickNo, bedanktVon: 0, falsch: !ok });
 }
 function nextRound(g) {
   return startRound({ ...g, nextChooser: (g.round.chooser + 1) % 4 });
@@ -586,41 +616,212 @@ function RulesModal({ onClose, deck }) {
       {h("Weis und Stöck")}
       {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Under 200, vier Nell 150, vier Ass/König/Ober/Zehner 100. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
-      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Das Spiel endet sofort, sobald ein Team das Ziel erreicht (Bedanken), auch mitten in der Runde.")}
+      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
+      {h("Jasstafel")}
+      {p("Vorderseite: pro Team ein Z – 100er als Striche oben, 50er auf der Diagonale, 20er unten, der Rest als Zahl. Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
   );
 }
 
-function TafelModal({ game, deck, onClose }) {
+// ── Jasstafel: Schiefertafel mit Kreide ──
+// Vorderseite: pro Team ein «Z». Jede Runde wird wie von Hand angeschrieben:
+// 100er als Striche auf der oberen Linie, 50er auf der Diagonale, 20er auf der
+// unteren Linie; der Rest unter 20 wird als Zahl nachgeführt (ab 20 → Strich).
+// Rückseite: Striche über mehrere Partien (Match 1, Sieg 2, Berg 1).
+const CHALK = "rgba(240,240,232,0.92)";
+const CHALK_FONT = "'Chalkboard SE', 'Chalkboard', 'Comic Sans MS', 'Segoe Print', cursive";
+
+// Reproduzierbares «Zittern» der Kreide
+function jit(seed) { const x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x) - 0.5; }
+function ChalkLine({ x1, y1, x2, y2, seed, w }) {
+  const j = (k) => jit(seed * 7 + k) * 1.6;
+  const mx = (x1 + x2) / 2 + j(5), my = (y1 + y2) / 2 + j(6);
+  const d = "M" + (x1 + j(1)) + " " + (y1 + j(2)) + " Q" + mx + " " + my + " " + (x2 + j(3)) + " " + (y2 + j(4));
   return (
-    <Modal title="Jasstafel" onClose={onClose}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-        <thead>
-          <tr style={{ color: C.dim, textAlign: "right" }}>
-            <th style={{ textAlign: "left", padding: 4 }}>#</th><th style={{ textAlign: "left", padding: 4 }}>Trumpf</th><th style={{ padding: 4 }}>Wir</th><th style={{ padding: 4 }}>Ihr</th>
-          </tr>
-        </thead>
-        <tbody>
-          {game.history.map((h) => (
-            <tr key={h.no} style={{ borderTop: "1px solid " + C.line, textAlign: "right" }}>
-              <td style={{ textAlign: "left", padding: 4, color: C.dim }}>{h.no}</td>
-              <td style={{ textAlign: "left", padding: 4 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ModeIcon t={h.trump} deck={deck} size={16} />{modeName(h.trump, deck)}</span>
-                <span style={{ color: C.dim, fontSize: 12 }}> · {NAMES[h.decider]}{h.pushed ? " (geschoben)" : ""}</span>
-              </td>
-              <td style={{ padding: 4 }}>{h.total[0]}{h.match === 0 ? " M" : ""}</td>
-              <td style={{ padding: 4 }}>{h.total[1]}{h.match === 1 ? " M" : ""}</td>
+    <g>
+      <path d={d} stroke={CHALK} strokeWidth={w || 2.2} fill="none" strokeLinecap="round" filter="url(#kreide)" />
+      <path d={d} stroke="rgba(255,255,255,0.25)" strokeWidth={(w || 2.2) * 2} fill="none" strokeLinecap="round" />
+    </g>
+  );
+}
+function ChalkText({ x, y, size, children, anchor }) {
+  return <text x={x} y={y} fontSize={size} fill={CHALK} fontFamily={CHALK_FONT} textAnchor={anchor || "start"} filter="url(#kreide)">{children}</text>;
+}
+
+// n Striche entlang einer Linie (Start sx,sy, Richtung ux,uy), quer dazu
+// (Normale nx,ny); je 4 Striche + 1 Querstrich = Fünferbündel.
+function Tally({ n, sx, sy, ux, uy, nx, ny, len, step, seed }) {
+  const out = [];
+  let pos = 0;
+  for (let i = 0; i < n; i++) {
+    const inBundle = i % 5;
+    if (inBundle === 4) {
+      // Querstrich über die letzten vier
+      const a = pos - 4 * step - step * 0.3, b = pos - step * 0.7;
+      out.push(<ChalkLine key={i} seed={seed + i} x1={sx + ux * a - nx * len * 0.55} y1={sy + uy * a - ny * len * 0.55} x2={sx + ux * b + nx * len * 0.55} y2={sy + uy * b + ny * len * 0.55} />);
+      pos += step * 0.9;
+    } else {
+      out.push(<ChalkLine key={i} seed={seed + i} x1={sx + ux * pos - nx * len / 2} y1={sy + uy * pos - ny * len / 2} x2={sx + ux * pos + nx * len / 2} y2={sy + uy * pos + ny * len / 2} />);
+      pos += step;
+    }
+  }
+  return <g>{out}</g>;
+}
+
+// Rundenpunkte wie beim Anschreiben zerlegen
+function tafelStriche(history, team) {
+  let h = 0, f = 0, z = 0, rest = 0;
+  history.forEach((e) => {
+    const p = e.total[team];
+    h += Math.floor(p / 100);
+    f += Math.floor((p % 100) / 50);
+    z += Math.floor((p % 50) / 20);
+    rest += (p % 50) % 20;
+    while (rest >= 20) { z++; rest -= 20; }
+  });
+  return { h, f, z, rest };
+}
+
+function SlateDefs() {
+  return (
+    <defs>
+      <filter id="kreide" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n" />
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="2.2" />
+      </filter>
+      <filter id="schiefer">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012 0.05" numOctaves="3" seed="8" />
+        <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.07 0" />
+      </filter>
+      <radialGradient id="schieferGrund" cx="45%" cy="40%" r="80%">
+        <stop offset="0%" stopColor="#3c4744" />
+        <stop offset="100%" stopColor="#232b29" />
+      </radialGradient>
+    </defs>
+  );
+}
+
+function Slate({ w, h, children }) {
+  return (
+    <div style={{ padding: 12, borderRadius: 10, background: "linear-gradient(135deg, #a8743f, #7a4b22 45%, #a8743f 70%, #6b3f1b)", boxShadow: "0 8px 24px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(0,0,0,0.25)" }}>
+      <svg viewBox={"0 0 " + w + " " + h} style={{ width: "100%", display: "block", borderRadius: 3, boxShadow: "inset 0 0 12px rgba(0,0,0,0.8)" }}>
+        <SlateDefs />
+        <rect width={w} height={h} fill="url(#schieferGrund)" />
+        <rect width={w} height={h} filter="url(#schiefer)" />
+        {/* Reste weggewischter Kreide */}
+        <ellipse cx={w * 0.7} cy={h * 0.3} rx={w * 0.25} ry={h * 0.05} fill="rgba(255,255,255,0.035)" />
+        <ellipse cx={w * 0.3} cy={h * 0.75} rx={w * 0.3} ry={h * 0.06} fill="rgba(255,255,255,0.03)" />
+        {children}
+      </svg>
+    </div>
+  );
+}
+
+function TafelVorderseite({ game }) {
+  const W = 360, H = 500;
+  const half = (team, oy) => {
+    const s = tafelStriche(game.history, team);
+    const L = 40, R = 300, T = oy + 46, B = oy + 196;
+    const dx = L - R, dy = B - T, dl = Math.hypot(dx, dy);
+    const ux = dx / dl, uy = dy / dl;
+    return (
+      <g key={team}>
+        <ChalkLine x1={L} y1={T} x2={R} y2={T} seed={team * 100 + 1} w={2.6} />
+        <ChalkLine x1={R} y1={T} x2={L} y2={B} seed={team * 100 + 2} w={2.6} />
+        <ChalkLine x1={L} y1={B} x2={R} y2={B} seed={team * 100 + 3} w={2.6} />
+        <Tally n={Math.min(s.h, 35)} sx={L + 12} sy={T} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 100} />
+        <Tally n={Math.min(s.f, 30)} sx={R - 26} sy={T + 14} ux={ux} uy={uy} nx={-uy} ny={ux} len={14} step={7} seed={team * 1000 + 300} />
+        <Tally n={Math.min(s.z, 35)} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
+        {s.rest > 0 && <ChalkText x={R + 26} y={B + 7} size={20} anchor="middle">{s.rest}</ChalkText>}
+        <ChalkText x={L} y={oy + 26} size={22}>{TEAM[team]}</ChalkText>
+        <ChalkText x={L + 6} y={T + 64} size={15}>{game.scores[team]}</ChalkText>
+        {game.berg === team && <ChalkText x={R - 70} y={B - 22} size={13}>Berg ✓</ChalkText>}
+      </g>
+    );
+  };
+  return (
+    <Slate w={W} h={H}>
+      {half(0, 4)}
+      <ChalkLine x1={14} y1={250} x2={W - 14} y2={250} seed={77} w={1.6} />
+      {half(1, 252)}
+      <ChalkText x={W - 12} y={H - 10} size={11} anchor="end">Ziel {game.target} · Berg {bergOf(game.target)}</ChalkText>
+    </Slate>
+  );
+}
+
+function TafelRueckseite({ striche }) {
+  const W = 360, H = 400;
+  const rows = [["Match", "match", 1], ["Sieg", "sieg", 2], ["Berg", "berg", 1]];
+  const total = (t) => rows.reduce((s, [, k, f]) => s + striche[k][t] * f, 0);
+  return (
+    <Slate w={W} h={H}>
+      <ChalkText x={W * 0.3} y={38} size={22} anchor="middle">Wir</ChalkText>
+      <ChalkText x={W * 0.72} y={38} size={22} anchor="middle">Ihr</ChalkText>
+      <ChalkLine x1={W * 0.5} y1={18} x2={W * 0.5} y2={H - 60} seed={11} w={1.8} />
+      <ChalkLine x1={14} y1={52} x2={W - 14} y2={52} seed={12} w={1.8} />
+      {rows.map(([label, k, f], i) => {
+        const y = 100 + i * 80;
+        return (
+          <g key={k}>
+            <ChalkText x={10} y={y - 30} size={12}>{label}{f === 2 ? " (2)" : ""}</ChalkText>
+            {[0, 1].map((t) => (
+              <Tally key={t} n={Math.min(striche[k][t] * f, 40)} sx={(t === 0 ? 24 : W * 0.5 + 16)} sy={y} ux={1} uy={0} nx={0} ny={1} len={26} step={8} seed={i * 500 + t * 100} />
+            ))}
+          </g>
+        );
+      })}
+      <ChalkLine x1={14} y1={H - 52} x2={W - 14} y2={H - 52} seed={13} w={1.8} />
+      <ChalkText x={W * 0.3} y={H - 20} size={20} anchor="middle">= {total(0)}</ChalkText>
+      <ChalkText x={W * 0.72} y={H - 20} size={20} anchor="middle">= {total(1)}</ChalkText>
+    </Slate>
+  );
+}
+
+function TafelModal({ game, deck, striche, onResetStriche, onClose }) {
+  const [side, setSide] = useState("vorne");
+  return (
+    <Modal title="Jasstafel" onClose={onClose} wide>
+      <div style={{ marginBottom: 10 }}>
+        <Choice value={side} onChange={setSide} options={[["vorne", "Punkte"], ["hinten", "Striche"], ["liste", "Runden"]]} />
+      </div>
+      {side === "vorne" && <TafelVorderseite game={game} />}
+      {side === "hinten" && (
+        <div>
+          <TafelRueckseite striche={striche} />
+          <div style={{ fontSize: 12, color: C.dim, margin: "10px 0" }}>
+            Über alle Partien: jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg ({bergOf(game.target)} Punkte zuerst erreicht) 1 Strich.
+          </div>
+          <button onClick={() => { if (window.confirm("Rückseite der Tafel abwischen (alle Striche löschen)?")) onResetStriche(); }} style={btn(false)}>Tafel abwischen</button>
+        </div>
+      )}
+      {side === "liste" && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ color: C.dim, textAlign: "right" }}>
+              <th style={{ textAlign: "left", padding: 4 }}>#</th><th style={{ textAlign: "left", padding: 4 }}>Trumpf</th><th style={{ padding: 4 }}>Wir</th><th style={{ padding: 4 }}>Ihr</th>
             </tr>
-          ))}
-          <tr style={{ borderTop: "2px solid " + C.gold, fontWeight: 800, textAlign: "right" }}>
-            <td colSpan={2} style={{ textAlign: "left", padding: 4 }}>Total (Ziel {game.target})</td>
-            <td style={{ padding: 4 }}>{game.scores[0]}</td><td style={{ padding: 4 }}>{game.scores[1]}</td>
-          </tr>
-        </tbody>
-      </table>
-      {!game.history.length && <div style={{ color: C.dim, fontSize: 13, marginTop: 10 }}>Noch keine Runde gespielt.</div>}
+          </thead>
+          <tbody>
+            {game.history.map((h) => (
+              <tr key={h.no} style={{ borderTop: "1px solid " + C.line, textAlign: "right" }}>
+                <td style={{ textAlign: "left", padding: 4, color: C.dim }}>{h.no}</td>
+                <td style={{ textAlign: "left", padding: 4 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ModeIcon t={h.trump} deck={deck} size={16} />{modeName(h.trump, deck)}</span>
+                  <span style={{ color: C.dim, fontSize: 12 }}> · {NAMES[h.decider]}{h.pushed ? " (geschoben)" : ""}</span>
+                </td>
+                <td style={{ padding: 4 }}>{h.total[0]}{h.match === 0 ? " M" : ""}</td>
+                <td style={{ padding: 4 }}>{h.total[1]}{h.match === 1 ? " M" : ""}</td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: "2px solid " + C.gold, fontWeight: 800, textAlign: "right" }}>
+              <td colSpan={2} style={{ textAlign: "left", padding: 4 }}>Total (Ziel {game.target})</td>
+              <td style={{ padding: 4 }}>{game.scores[0]}</td><td style={{ padding: 4 }}>{game.scores[1]}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
     </Modal>
   );
 }
@@ -680,7 +881,9 @@ function RoundEndModal({ game, deck, onNext }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 14 }}>
         <ModeIcon t={r.trump} deck={deck} size={20} /> {modeName(r.trump, deck)} · {NAMES[r.decider]}{r.pushed ? " (geschoben)" : ""} · ×{res.mult}
       </div>
-      {r.bedankt && <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>{over && over.winner === 0 ? "Wir bedanken uns" : "Ihr bedankt euch"} – Zielpunkte nach Stich {r.bedankt} erreicht.</div>}
+      {r.bedankt != null && (r.falsch
+        ? <div style={{ color: C.red, fontWeight: 800, marginBottom: 8 }}>Falsch bedankt {r.bedankt ? "nach Stich " + r.bedankt : "vor dem ersten Stich"}: Wir hatten erst {game.scores[0]} von {game.target} Punkten – das Spiel geht an die Gegner.</div>
+        : <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>{r.bedanktVon === 0 ? "Wir bedanken uns" : "Ihr bedankt euch"} – Zielpunkte {r.bedankt ? "nach Stich " + r.bedankt : "vor dem ersten Stich"} erreicht.</div>)}
       {res.match != null && <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>Match für {TEAM[res.match]}!</div>}
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
         <thead><tr style={{ color: C.dim }}><th></th><th style={{ textAlign: "right", padding: 4 }}>Wir</th><th style={{ textAlign: "right", padding: 4 }}>Ihr</th></tr></thead>
@@ -734,6 +937,8 @@ function JassApp() {
   const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal(null)} />;
   useEffect(() => { save("game", game); }, [game]);
   useEffect(() => { save("stats", stats); }, [stats]);
+  const [striche, setStriche] = useState(() => ({ match: [0, 0], sieg: [0, 0], berg: [0, 0], ...load("striche", {}) }));
+  useEffect(() => { save("striche", striche); }, [striche]);
 
   const say = (msg, ms) => {
     clearTimeout(toastTimer.current);
@@ -766,13 +971,30 @@ function JassApp() {
         .map((p) => NAMES[p] + ": " + r.weis.byPlayer[p].map((w) => describeWeis(w, deck)).join(", "));
       say("Weis " + TEAM[wt] + " +" + r.weis.pts[wt] + " — " + parts.join(" · "), 3500);
     }
-    if (ng.round.phase === "roundEnd") {
-      const res = ng.round.result;
-      setStats((s) => ({
-        ...s, rounds: s.rounds + 1, matches: s.matches + (res.match === 0 ? 1 : 0),
-        played: s.played + (ng.over ? 1 : 0), won: s.won + (ng.over && ng.over.winner === 0 ? 1 : 0),
-      }));
-    }
+    record(g, ng);
+    setGame(ng);
+  };
+  // Statistik und Striche (Rückseite der Jasstafel) bei Rundenende nachführen
+  const record = (g, ng) => {
+    if (ng.round.phase !== "roundEnd" || g.round.phase === "roundEnd") return;
+    const res = ng.round.result;
+    setStats((s) => ({
+      ...s, rounds: s.rounds + 1, matches: s.matches + (res.match === 0 ? 1 : 0),
+      played: s.played + (ng.over ? 1 : 0), won: s.won + (ng.over && ng.over.winner === 0 ? 1 : 0),
+    }));
+    setStriche((st) => {
+      const n = { match: st.match.slice(), sieg: st.sieg.slice(), berg: st.berg.slice() };
+      if (res.match != null) n.match[res.match]++;
+      if (ng.over) n.sieg[ng.over.winner]++;
+      if (ng.berg != null && g.berg == null) n.berg[ng.berg]++;
+      return n;
+    });
+  };
+  const bedanken = () => {
+    const ng = doBedanken(game);
+    if (ng === game) return;
+    record(game, ng);
+    setSelected(null);
     setGame(ng);
   };
 
@@ -926,6 +1148,10 @@ function JassApp() {
         <div style={{ position: "absolute", bottom: 8, left: 8, fontSize: 12, color: C.dim }}>
           Runde {r.no}{r.trump != null ? " · Stiche " + r.tricks[0] + ":" + r.tricks[1] : ""}
         </div>
+        {(r.phase === "play" || r.phase === "trickDone") && !game.over && (
+          <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
+            style={{ position: "absolute", bottom: 30, left: 8, ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
+        )}
         {toast && (
           <div style={{ position: "absolute", top: "24%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "8px 14px", borderRadius: 12, fontSize: 14, fontWeight: 600, maxWidth: "86%", textAlign: "center", zIndex: 20, pointerEvents: "none" }}>{toast}</div>
         )}
@@ -971,7 +1197,7 @@ function JassApp() {
         ]} />
       )}
       {r.phase === "roundEnd" && !modal && <RoundEndModal game={game} deck={deck} onNext={() => (game.over ? startNew() : setGame(nextRound(game)))} />}
-      {modal === "tafel" && <TafelModal game={game} deck={deck} onClose={() => setModal(null)} />}
+      {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}

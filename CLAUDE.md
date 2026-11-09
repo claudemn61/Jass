@@ -17,9 +17,12 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   (alte Version z.B. per `git show <commit>:engine.js > /tmp/alt.js`).
 - Partnerregeln (in `botPlay`): erster Abwurf = Verwerfen (schwache Farbe), danach Schmieren
   oder Verwerfen; Bock des Partners → Karte direkt darunter zugeben; vom Partner verworfene Farbe
-  nicht anspielen. Bedanken: Spiel endet sofort bei Erreichen der Zielpunkte (Stöck – Weis – Stich).
+  nicht anspielen. Bedanken: Gegner automatisch bei Erreichen der Zielpunkte, für «Wir» per Knopf (falsch bedankt =
+  verloren); am Rundenende normale Abrechnung (Stöck – Weis – Stich).
+- Jasstafel (`TafelModal`): Schiefer-Optik als SVG. Vorderseite Z (100er/50er/20er-Striche, Rest als
+  Zahl), Rückseite Striche über alle Partien (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
-- Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`).
+- Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB
   `jass-bilder`, niemals ins Repo (urheberrechtlich geschützt, Repo ist öffentlich).
 - Deployment: GitHub Pages direkt vom `main`-Branch.
