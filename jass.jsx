@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.1.1";
 
 const CHANGELOG = [
+  {
+    version: "1.1.1",
+    changes: [
+      "iPad: Spielfeld nutzt die ganze Bildschirmbreite, grössere Karten und Beschriftungen (hoch und quer)",
+    ],
+  },
   {
     version: "1.1.0",
     changes: [
@@ -742,6 +748,12 @@ function FeltBackground() {
   );
 }
 
+function useHeight() {
+  const [h, setH] = useState(window.innerHeight);
+  useEffect(() => { const f = () => setH(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
+  return h;
+}
+
 function useWidth() {
   const [w, setW] = useState(window.innerWidth);
   useEffect(() => { const f = () => setW(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -761,7 +773,7 @@ function Modal({ title, onClose, children, wide, page }) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 50, overflowY: "auto", background: "#1b2120", color: C.text }}>
         <StartSlate />
-        <div style={{ position: "relative", zIndex: 1, maxWidth: 560, margin: "0 auto", padding: "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box" }}>
+        <div style={{ position: "relative", zIndex: 1, maxWidth: window.innerWidth >= 700 ? 760 : 560, margin: "0 auto", padding: "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box" }}>
           <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
             <div style={{ flex: 1, fontSize: 28, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.2)" }}>{title}</div>
             {onClose && <button onClick={onClose} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid " + C.line, borderRadius: 20, color: C.text, fontSize: 18, width: 36, height: 36, cursor: "pointer" }}>✕</button>}
@@ -1291,6 +1303,7 @@ function JassApp() {
   const reloadImgs = () => imgAll().then(setImgs).catch((e) => console.error("Kartenbilder:", e));
   useEffect(() => { reloadImgs(); }, []);
   const vw = useWidth();
+  const vh = useHeight();
   const deck = settings.deck;
   NAMES = [0, 1, 2, 3].map((i) => ((settings.names && settings.names[i]) || "").trim() || DEFAULT_NAMES[i]);
   const sp = SPEEDS[settings.speed] || SPEEDS.normal;
@@ -1434,11 +1447,16 @@ function JassApp() {
   const hand = r.hands[0];
 
   // Masse
-  const W = Math.min(vw, 560);
-  const cw = Math.max(44, Math.min(78, Math.floor((W - 16) / 5.4)));
+  // Grosse Bildschirme (iPad): volle Breite bis 1200 px, Karten bis 150 px breit,
+  // im Querformat durch die Höhe begrenzt; Beschriftungen wachsen mit (uiK).
+  const big = vw >= 700;
+  const MAXW = big ? Math.min(vw, 1200) : 560;
+  const W = Math.min(vw, MAXW);
+  const cw = Math.max(44, Math.min(big ? 150 : 78, Math.floor((W - 16) / 5.4), big ? Math.floor(vh * 0.14) : 999));
+  const uiK = big ? Math.min(1.5, cw / 78) : 1;
   const step = hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
   const handW = cw + step * Math.max(0, hand.length - 1);
-  const tw = Math.round(cw * 0.92), th = Math.round(tw * 1.5);
+  const tw = Math.round(cw * (big && vw > vh ? 0.72 : 0.92)), th = Math.round(tw * 1.5); // iPad quer: Stichkarten kleiner, damit sie nicht an die Plätze stossen
 
   const playMode = settings.playMode || (settings.oneTap ? "tap" : "confirm");
   const tapCard = (c) => {
@@ -1503,12 +1521,12 @@ function JassApp() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: align || "center", gap: 3, marginTop: 4 }}>
         {ws.map((w, i) => (
-          <div key={i} title={describeWeis(w, deck)} style={{ fontSize: 11, padding: "1px 6px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: "1px solid rgba(244,196,48,0.6)", color: C.text, whiteSpace: "nowrap", lineHeight: 1.4 }}>
+          <div key={i} title={describeWeis(w, deck)} style={{ fontSize: 11 * uiK, padding: "1px 6px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: "1px solid rgba(244,196,48,0.6)", color: C.text, whiteSpace: "nowrap", lineHeight: 1.4 }}>
             {/* Kurzform: Punkte, Farbe, Bezugskarte – bei Undenufe die tiefste
                 (20 Schellen 10 = 10, U, O), sonst die höchste (20 Schellen 9 = 7, 8, 9) */}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
               <b style={{ color: C.gold }}>{w.pts}</b>
-              {w.type === "four" ? "4×" + RANK_LABEL[deck][w.r] : <><SuitIcon s={w.s} deck={deck} size={12} />{RANK_LABEL[deck][r.trump === E.UNDE ? w.lo : w.hi]}</>}
+              {w.type === "four" ? "4×" + RANK_LABEL[deck][w.r] : <><SuitIcon s={w.s} deck={deck} size={12 * uiK} />{RANK_LABEL[deck][r.trump === E.UNDE ? w.lo : w.hi]}</>}
             </span>
           </div>
         ))}
@@ -1518,7 +1536,7 @@ function JassApp() {
 
   // Lernmodus: Hand eines Mitspielers offen und klein
   const OpenHand = ({ cards }) => {
-    const mw = 26, st = 9;
+    const mw = Math.round(26 * uiK), st = Math.round(9 * uiK);
     return (
       <div style={{ position: "relative", width: mw + st * (cards.length - 1), height: Math.round(mw * 1.5), marginTop: 3 }}>
         {cards.map((c, i) => (
@@ -1535,12 +1553,12 @@ function JassApp() {
     const isDecider = r.trump != null && r.decider === p;
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-        <div style={{ padding: "4px 10px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13, fontWeight: 700,
+        <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
           border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
           boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
           {NAMES[p]}{isDecider ? (r.pushed ? " ☆" : " ★") : ""}
         </div>
-        <div style={{ fontSize: 11, color: C.dim }}>{r.hands[p].length} Karten</div>
+        <div style={{ fontSize: 11 * uiK, color: C.dim }}>{r.hands[p].length} Karten</div>
         {settings.openCards && r.hands[p].length > 0 && <OpenHand cards={r.hands[p]} />}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
@@ -1553,7 +1571,7 @@ function JassApp() {
       <FeltBackground />
       {/* Kopfzeile */}
       <div style={{ paddingTop: "env(safe-area-inset-top, 0px)", background: "rgba(0,0,0,0.25)", borderBottom: "1px solid " + C.line }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", maxWidth: 560, margin: "0 auto", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", maxWidth: MAXW, margin: "0 auto", boxSizing: "border-box", zoom: uiK }}>
           <button onClick={() => setMenu(true)} style={{ background: "none", border: "none", color: C.text, fontSize: 22, cursor: "pointer", padding: "0 6px" }}>☰</button>
           <div onClick={() => setModal("tafel")} style={{ flex: 1, display: "flex", gap: 14, cursor: "pointer", alignItems: "baseline" }}>
             <div><span style={{ fontSize: 11, color: C.dim }}>Wir </span><span style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{game.scores[0]}</span></div>
@@ -1571,41 +1589,44 @@ function JassApp() {
       </div>
 
       {/* Tisch */}
-      <div onClick={() => r.phase === "trickDone" && collect(game)} style={{ flex: 1, position: "relative", maxWidth: 560, width: "100%", margin: "0 auto", minHeight: 0 }}>
+      <div onClick={() => r.phase === "trickDone" && collect(game)} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
         <Seat p={2} style={{ top: 10, left: "50%", transform: "translateX(-50%)" }} />
-        <div style={{ position: "absolute", top: 10, right: 8, zIndex: 5 }} onClick={(ev) => ev.stopPropagation()}>
+        <div style={{ position: "absolute", top: 10, right: 8, zIndex: 5, zoom: uiK }} onClick={(ev) => ev.stopPropagation()}>
           <TafelBadge onClick={() => setModal("tafel")} />
         </div>
         {wonBy[0] > 0 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)" }}><TrickPile n={wonBy[0]} w={pileW} /></div>}
         {weisOf(0).length > 0 && <div style={{ position: "absolute", bottom: wonBy[0] > 0 ? 10 + pileW + 22 : 10, left: "50%", transform: "translateX(-50%)" }}><WeisChips p={0} /></div>}
         <Seat p={3} style={{ top: "42%", left: 8 }} />
         <Seat p={1} style={{ top: "42%", right: 8 }} />
-        <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0 }}>
+        <div style={{ position: "absolute", left: "50%", top: big && vw > vh ? "57%" : "50%", width: 0, height: 0 }}>
           {r.trick.map((e, i) => (
             <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, transform: trickPos(e.p), zIndex: i, transition: "transform 0.2s", filter: i === curIdx ? "drop-shadow(0 0 4px " + STICH + ") drop-shadow(0 0 2px " + STICH + ")" : winnerIdx >= 0 ? "brightness(0.8)" : "none" }}>
               <Card id={e.c} deck={deck} w={tw} trump={E.isTrump(e.c, r.trump)} />
             </div>
           ))}
         </div>
-        {r.lastTrick && r.phase !== "roundEnd" && (
-          <button onClick={(ev) => { ev.stopPropagation(); setModal("last"); }} style={{ position: "absolute", bottom: 8, right: 8, ...btn(false), padding: "6px 10px", fontSize: 12 }}>Letzter Stich</button>
-        )}
-        <div style={{ position: "absolute", bottom: 8, left: 8, fontSize: 12, color: C.dim }}>
+        <div style={{ position: "absolute", bottom: 8, left: 8, fontSize: 12, color: C.dim, zoom: uiK }}>
           Runde {r.no}{r.trump != null ? " · Stiche " + r.tricks[0] + ":" + r.tricks[1] : ""}
           {r.trump != null && <div>Trumpf: {NAMES[r.decider]} {r.pushed ? "☆" : "★"}</div>}
         </div>
-        {(r.phase === "play" || r.phase === "trickDone") && !game.over && (
-          <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
-            style={{ position: "absolute", bottom: r.trump != null ? 46 : 30, left: 8, ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
-        )}
+        {/* Knöpfe unten rechts nebeneinander (kollidieren so nicht mit den Plätzen) */}
+        <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", gap: 6, zoom: uiK }}>
+          {(r.phase === "play" || r.phase === "trickDone") && !game.over && (
+            <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
+              style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
+          )}
+          {r.lastTrick && r.phase !== "roundEnd" && (
+            <button onClick={(ev) => { ev.stopPropagation(); setModal("last"); }} style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Letzter Stich</button>
+          )}
+        </div>
         {toast && (
-          <div style={{ position: "absolute", top: "24%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "8px 14px", borderRadius: 12, fontSize: 14, fontWeight: 600, maxWidth: "86%", textAlign: "center", zIndex: 20, pointerEvents: "none" }}>{toast}</div>
+          <div style={{ position: "absolute", top: "24%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "8px 14px", borderRadius: 12, fontSize: 14 * uiK, fontWeight: 600, maxWidth: "86%", textAlign: "center", zIndex: 20, pointerEvents: "none" }}>{toast}</div>
         )}
       </div>
 
       {/* Trumpfwahl */}
       {r.phase === "choose" && r.decider === 0 && (
-        <div style={{ maxWidth: 560, width: "100%", margin: "0 auto", padding: "0 10px 8px", boxSizing: "border-box" }}>
+        <div style={{ maxWidth: big ? 760 : 560, width: "100%", margin: "0 auto", padding: "0 10px 8px", boxSizing: "border-box" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
             {[3, 1, 0, 2, 4, 5].map((t) => (
               <button key={t} onClick={() => choose(game, t)} style={{ ...btn(false), padding: "8px 4px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 14 }}>
@@ -1619,7 +1640,7 @@ function JassApp() {
       )}
 
       {/* Status + Hand */}
-      <div style={{ textAlign: "center", fontSize: 13, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{status}</div>
+      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
           {hand.map((c, i) => (
