@@ -381,6 +381,29 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
   };
   const removeOne = async (id) => { await imgWrite((st) => st.delete(key(id))); await reload(); };
 
+  // ── Tauschen: einzelne Karten, ganze Ränge (alle 4 Farben) oder ganze Farben ──
+  const [mode, setMode] = useState("ersetzen");
+  const [sel, setSel] = useState(null); // { type: "card"|"rank"|"suit", v }
+  const swapIds = async (pairs) => {
+    await imgWrite((st) => pairs.forEach(([a, b]) => {
+      const ia = imgs[key(a)], ib = imgs[key(b)];
+      if (ib) st.put(ib, key(a)); else st.delete(key(a));
+      if (ia) st.put(ia, key(b)); else st.delete(key(b));
+    }));
+    await reload();
+  };
+  const tapSwap = (type, v) => {
+    if (!sel || sel.type !== type) { setSel({ type, v }); return; }
+    if (sel.v === v) { setSel(null); return; }
+    const a = sel.v, b = v;
+    setSel(null);
+    if (type === "card") swapIds([[a, b]]);
+    if (type === "rank") swapIds(SUITS.map((s) => [s * 9 + a, s * 9 + b]));
+    if (type === "suit") swapIds(RANKS.map((r) => [a * 9 + r, b * 9 + r]));
+  };
+  const isSel = (type, v) => sel && sel.type === type && sel.v === v;
+  const swapping = mode === "tauschen";
+
   const toggle = (k) => setSettings({ ...settings, [k]: !settings[k] });
   return (
     <Modal title="Eigene Kartenbilder" onClose={onClose} wide>
@@ -425,16 +448,34 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
       <input ref={groupRef} type="file" accept="image/*,application/pdf" onChange={onGroup} style={{ display: "none" }} />
       {busy && <div style={{ fontSize: 13, color: C.gold, marginBottom: 10 }}>{busy}</div>}
       <div style={{ fontSize: 13, marginBottom: 8 }}>{count} von 36 Karten mit eigenem Bild</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: C.dim }}>Antippen:</span>
+        <Choice value={mode} onChange={(v) => { setMode(v); setSel(null); }} options={[["ersetzen", "Bild ersetzen"], ["tauschen", "Tauschen"]]} />
+      </div>
+      {swapping && (
+        <div style={{ fontSize: 12, color: C.gold, marginBottom: 8, lineHeight: 1.5 }}>
+          {sel ? "Jetzt das Ziel antippen (gleiche Art) – oder nochmals dasselbe zum Abbrechen."
+            : "Zwei Karten nacheinander antippen = tauschen. Rang-Knöpfe (6 … A) tauschen den ganzen Rang in allen 4 Farben, Farb-Namen die ganze Farbe."}
+        </div>
+      )}
+      {swapping && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 3, marginBottom: 8 }}>
+          {RANKS.map((r) => (
+            <button key={r} onClick={() => tapSwap("rank", r)} style={{ ...btn(isSel("rank", r)), padding: "6px 0", fontSize: 12 }}>{RANK_LABEL[deck][r]}</button>
+          ))}
+        </div>
+      )}
       {[0, 1, 2, 3].map((s) => (
         <div key={s} style={{ marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginBottom: 4 }}><SuitIcon s={s} deck={deck} size={16} />{SUIT_NAMES[deck][s]}</div>
+          <div onClick={() => swapping && tapSwap("suit", s)} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, marginBottom: 4, padding: swapping ? "3px 8px" : 0, borderRadius: 8, cursor: swapping ? "pointer" : "default", background: isSel("suit", s) ? C.gold : swapping ? "rgba(255,255,255,0.08)" : "none", color: isSel("suit", s) ? "#1a1200" : C.text }}><SuitIcon s={s} deck={deck} size={16} />{SUIT_NAMES[deck][s]}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 3 }}>
             {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((r) => {
               const id = s * 9 + r, im = imgs[key(id)];
+              const hl = isSel("card", id) || isSel("rank", r) || isSel("suit", s);
               return (
-                <div key={r} onClick={() => { slotRef.current = id; singleRef.current.click(); }}
+                <div key={r} onClick={() => { if (swapping) tapSwap("card", id); else { slotRef.current = id; singleRef.current.click(); } }}
                   onContextMenu={(e) => { e.preventDefault(); if (im && window.confirm("Bild dieser Karte löschen?")) removeOne(id); }}
-                  style={{ aspectRatio: "2 / 3", borderRadius: 4, overflow: "hidden", cursor: "pointer", background: im ? "#fff" : "rgba(255,255,255,0.08)", border: "1px solid " + C.line, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: C.dim }}>
+                  style={{ aspectRatio: "2 / 3", borderRadius: 4, overflow: "hidden", cursor: "pointer", background: im ? "#fff" : "rgba(255,255,255,0.08)", border: hl ? "2px solid " + C.gold : "1px solid " + C.line, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: C.dim }}>
                   {im ? <img src={im} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : RANK_LABEL[deck][r]}
                 </div>
               );
