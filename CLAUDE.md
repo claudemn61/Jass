@@ -26,6 +26,9 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB
   `jass-bilder`, niemals ins Repo (urheberrechtlich geschützt, Repo ist öffentlich).
+- Backup (Einstellungen → Backup): JSON-Datei mit allen `jass:`-Keys und den Kartenbildern aus
+  IndexedDB; Teilen über `navigator.share` (Fallback Download). Neue dauerhafte Daten immer mit
+  Präfix `jass:` speichern, sonst fehlen sie im Backup.
 - Deployment: GitHub Pages direkt vom `main`-Branch.
 
 ## Versionierung

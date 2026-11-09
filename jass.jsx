@@ -774,6 +774,77 @@ function Choice({ value, options, onChange }) {
   );
 }
 
+// ── Backup ──
+// Eine JSON-Datei mit allen "jass:"-Einträgen (Einstellungen, Spiel, Statistik,
+// Striche) und den eigenen Kartenbildern inkl. Rückseite aus IndexedDB.
+// Zum Übertragen auf ein anderes eigenes Gerät (AirDrop, Dateien-App …).
+async function exportBackup() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("jass:")) data[k] = localStorage.getItem(k);
+  }
+  let images = {};
+  try { images = await imgAll(); } catch (e) {}
+  const backup = { app: "jass", format: 1, created: new Date().toISOString(), localStorage: data, images };
+  const name = "jass-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+  const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
+  const file = new File([blob], name, { type: "application/json" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "Jass-Backup" }); return "geteilt"; }
+    catch (e) { if (e && e.name === "AbortError") return "abgebrochen"; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return "gespeichert";
+}
+async function importBackup(file) {
+  const b = JSON.parse(await file.text());
+  if (!b || b.app !== "jass" || !b.localStorage) throw new Error("Keine Jass-Backup-Datei.");
+  const old = [];
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("jass:")) old.push(k); }
+  old.forEach((k) => localStorage.removeItem(k));
+  Object.entries(b.localStorage).forEach(([k, v]) => { if (k.startsWith("jass:")) localStorage.setItem(k, v); });
+  const imgs = b.images || {};
+  await imgWrite((st) => { st.clear(); Object.entries(imgs).forEach(([k, v]) => st.put(v, k)); });
+  return Object.keys(imgs).length;
+}
+
+function BackupRow() {
+  const [msg, setMsg] = useState(null);
+  const inRef = useRef(null);
+  const doExport = async () => {
+    setMsg("Erstelle Backup…");
+    try {
+      const r = await exportBackup();
+      setMsg(r === "abgebrochen" ? null : r === "geteilt" ? "Backup geteilt." : "Backup-Datei gespeichert (Downloads).");
+    } catch (e) { setMsg("Fehler: " + (e.message || e)); }
+  };
+  const doImport = async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!f) return;
+    if (!window.confirm("Backup laden? Einstellungen, Spielstand, Statistik, Striche und eigene Kartenbilder auf diesem Gerät werden ersetzt.")) return;
+    try {
+      const n = await importBackup(f);
+      setMsg("Backup geladen (" + n + " Bilder). Die App startet neu…");
+      setTimeout(() => location.reload(), 900);
+    } catch (e) { setMsg("Fehler: " + (e.message || e)); }
+  };
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={doExport} style={btn(false)}>Backup exportieren…</button>
+        <button onClick={() => inRef.current.click()} style={btn(false)}>Backup laden…</button>
+      </div>
+      <input ref={inRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
+      {msg && <div style={{ fontSize: 13, color: C.gold, marginTop: 8 }}>{msg}</div>}
+    </div>
+  );
+}
+
 function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   const row = (label, el, hint) => (
@@ -792,6 +863,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
       {row("Spielstärke der Computer-Spieler", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
         settings.level === "normal" ? "Einfache Faustregeln." : "Rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
       {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"]]} />)}
+      {row("Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes iPhone übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben, nicht veröffentlichen.")}
       {row("Eigene Kartenbilder", <button onClick={onImages} style={{ ...btn(false), display: "inline-flex", alignItems: "center", gap: 8 }}>🃏 Eigene Kartenbilder…</button>, "Fotos/Scans deiner eigenen Karten und Rückseite – nur auf diesem Gerät gespeichert.")}
       {row("Karte spielen", <Choice value={settings.oneTap} onChange={(v) => set("oneTap", v)} options={[[false, "Antippen + bestätigen"], [true, "Ein Tipp"]]} />)}
     </Modal>
