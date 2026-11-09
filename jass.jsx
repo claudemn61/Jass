@@ -30,7 +30,7 @@ function save(key, val) {
   try { if (val == null) localStorage.removeItem("jass:" + key); else localStorage.setItem("jass:" + key, JSON.stringify(val)); } catch (e) {}
 }
 
-const DEFAULT_SETTINGS = { deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe" };
+const DEFAULT_SETTINGS = { deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark" };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
@@ -51,7 +51,7 @@ function startRound(g) {
       no: g.history.length + 1, hands, start: hands.map((h) => h.slice()),
       chooser: ch, decider: ch, pushed: false, trump: null, phase: "choose",
       trick: [], turn: null, played: [], trickPts: [0, 0], tricks: [0, 0],
-      trickNo: 0, lastTrick: null, weis: null, stoeck: null, stoeckDone: false, result: null,
+      trickNo: 0, lastTrick: null, tricksLog: [], weis: null, stoeck: null, stoeckDone: false, result: null,
     },
   };
 }
@@ -90,8 +90,9 @@ function doCollect(g) {
   const tricks = r.tricks.slice(); tricks[E.team(w)] += 1;
   const played = r.played.concat(r.trick.map((e) => e.c));
   const lastTrick = { cards: r.trick, winner: w, pts };
+  const tricksLog = (r.tricksLog || []).concat([r.trick]);
   if (!last) {
-    return { ...g, round: { ...r, trick: [], turn: w, trickNo: r.trickNo + 1, phase: "play", trickPts, tricks, played, lastTrick } };
+    return { ...g, round: { ...r, trick: [], turn: w, trickNo: r.trickNo + 1, phase: "play", trickPts, tricks, played, lastTrick, tricksLog } };
   }
   const res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
   const ap = E.applyScore(g.scores, res, g.target);
@@ -99,7 +100,7 @@ function doCollect(g) {
   return {
     ...g, scores: ap.scores, history: g.history.concat([entry]),
     over: ap.winner != null ? { winner: ap.winner } : null,
-    round: { ...r, trick: [], turn: null, phase: "roundEnd", trickPts, tricks, played, lastTrick, trickNo: 9, result: res },
+    round: { ...r, trick: [], turn: null, phase: "roundEnd", trickPts, tricks, played, lastTrick, tricksLog, trickNo: 9, result: res },
   };
 }
 function nextRound(g) {
@@ -548,6 +549,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame }) {
       {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
       {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
         (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + (inGame ? " Gilt ab dem nächsten Spiel." : ""))}
+      {row("Spielstärke der Computer-Spieler", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
+        settings.level === "normal" ? "Einfache Faustregeln." : "Rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
       {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"]]} />)}
       {row("Karte spielen", <Choice value={settings.oneTap} onChange={(v) => set("oneTap", v)} options={[[false, "Antippen + bestätigen"], [true, "Ein Tipp"]]} />)}
     </Modal>
@@ -764,12 +767,15 @@ function JassApp() {
     let timer = null;
     if (r.phase === "choose" && r.decider !== 0) {
       timer = setTimeout(() => {
-        const d = E.botChooseTrump(r.hands[r.decider], !r.pushed);
+        const strong = settings.level !== "normal";
+        const d = strong ? E.botChooseTrumpSmart(r.hands[r.decider], !r.pushed, r.decider, game.mult) : E.botChooseTrump(r.hands[r.decider], !r.pushed);
         if (d === "push") push(game); else choose(game, d);
       }, sp.bot * 1.4);
     } else if (r.phase === "play" && r.turn !== 0) {
       timer = setTimeout(() => {
-        const c = E.botPlay({ hand: r.hands[r.turn], trick: r.trick, t: r.trump, played: r.played, p: r.turn, declarer: r.chooser });
+        const ctx = { hand: r.hands[r.turn], trick: r.trick, t: r.trump, played: r.played, p: r.turn, declarer: r.chooser, tricks: r.tricksLog, tricksWon: r.tricks };
+        // Ältere Spielstände ohne Stichverlauf: Heuristik verwenden
+        const c = settings.level !== "normal" && r.tricksLog && r.tricksLog.length === r.trickNo ? E.botPlaySmart(ctx) : E.botPlay(ctx);
         play(game, r.turn, c);
       }, sp.bot);
     } else if (r.phase === "trickDone") {

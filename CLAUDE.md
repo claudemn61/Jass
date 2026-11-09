@@ -10,6 +10,9 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
 - Kein Build-Schritt: React/JSX wird im Browser per Babel Standalone kompiliert.
 - `engine.js`: reine Spiellogik (Karten, Regeln, Weis, Stöck, Abrechnung, Computer-Spieler),
   im Browser als `window.JassEngine`, in Node per `require()` testbar (`node tests/sim.js`).
+- Computer-Spieler: Stufe «Stark» = Monte-Carlo-Suche (`botPlaySmart`, `botChooseTrumpSmart`) mit
+  der Heuristik `botPlay` als Rollout; Stufe «Normal» = nur Heuristik. Spielstärke messen mit
+  `node tests/strength.js [runden] [mcTrumpf 0/1] [seed]` (MC-Team gegen Heuristik-Team).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB

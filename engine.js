@@ -288,10 +288,190 @@
     return { scores: s, winner };
   }
 
+
+  // ── Stärkere Computer-Spieler: Monte-Carlo-Suche ──
+  // Die unbekannten Karten werden mehrfach zufällig auf die anderen Spieler
+  // verteilt (unter Beachtung bekannter Fehlfarben), die Runde wird für jede
+  // erlaubte Karte mit der Heuristik (botPlay) zu Ende gespielt und die Karte
+  // mit dem besten durchschnittlichen Punkteunterschied gewählt.
+
+  // Fehlfarben aus dem bisherigen Spielverlauf ableiten.
+  // void[p][s] = true: Spieler p hat sicher keine Karte der Farbe s
+  // (bei Trumpf: ausser evtl. dem Puur, der nie angegeben werden muss).
+  function inferVoids(tricks, t) {
+    const v = [0, 1, 2, 3].map(() => [false, false, false, false]);
+    tricks.forEach((tr) => {
+      if (!tr.length) return;
+      const led = suitOf(tr[0].c);
+      for (let i = 1; i < tr.length; i++) if (suitOf(tr[i].c) !== led) v[tr[i].p][led] = true;
+    });
+    return v;
+  }
+
+  function makeRng(seed) {
+    let x = seed >>> 0 || 1;
+    return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967296; };
+  }
+
+  // Unbekannte Karten auf die Spieler `others` mit Kartenzahl `need` verteilen
+  function sampleHands(unknown, others, need, voids, t, rnd) {
+    const buur = t < 4 ? t * 9 + 5 : -1;
+    const allowed = (p, c) => {
+      const s = suitOf(c);
+      if (!voids[p][s]) return true;
+      return c === buur; // Puur darf trotz "Trumpf nicht angegeben" vorhanden sein
+    };
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const cards = shuffle(unknown, rnd);
+      // eingeschränkte Karten zuerst verteilen
+      cards.sort((a, b) => others.filter((p) => allowed(p, a)).length - others.filter((p) => allowed(p, b)).length);
+      const hands = {}, left = {};
+      others.forEach((p) => { hands[p] = []; left[p] = need[p]; });
+      let ok = true;
+      for (const c of cards) {
+        const cand = others.filter((p) => left[p] > 0 && allowed(p, c));
+        if (!cand.length) { ok = false; break; }
+        // proportional zur verbleibenden Kapazität wählen
+        let tot = 0; cand.forEach((p) => (tot += left[p]));
+        let x = rnd() * tot, pick = cand[cand.length - 1];
+        for (const p of cand) { x -= left[p]; if (x < 0) { pick = p; break; } }
+        hands[pick].push(c); left[pick]--;
+      }
+      if (ok) return hands;
+    }
+    // Rückfall: ohne Fehlfarben-Einschränkung
+    const cards = shuffle(unknown, rnd), hands = {};
+    let i = 0;
+    others.forEach((p) => { hands[p] = cards.slice(i, i + need[p]); i += need[p]; });
+    return hands;
+  }
+
+  // Runde ab gegebenem Zustand mit der Heuristik zu Ende spielen.
+  // Liefert die Punkte beider Teams für die restlichen Stiche inkl. laufendem
+  // Stich sowie die Anzahl Stiche.
+  function rollout(hands, trick, played, turn, trickNo, t, declarer) {
+    hands = hands.map((h) => h.slice());
+    trick = trick.slice();
+    played = played.slice();
+    const pts = [0, 0], tricks = [0, 0];
+    let p = turn;
+    while (true) {
+      while (trick.length < 4) {
+        const c = botPlay({ hand: hands[p], trick, t, played, p, declarer });
+        hands[p] = hands[p].filter((x) => x !== c);
+        trick.push({ p, c });
+        p = (p + 1) % 4;
+      }
+      const w = trick[trickWinnerIdx(trick, t)].p;
+      let sum = 0;
+      for (const e of trick) { sum += points(e.c, t); played.push(e.c); }
+      if (trickNo === 8) sum += 5;
+      pts[team(w)] += sum; tricks[team(w)]++;
+      trick = []; p = w; trickNo++;
+      if (trickNo > 8) break;
+    }
+    return { pts, tricks };
+  }
+
+  // ctx wie botPlay, zusätzlich: tricks (bisherige Stiche als [{p,c}]),
+  // tricksWon ([a,b] bisher), samples (optional), seed (optional)
+  function botPlaySmart(ctx) {
+    const { hand, trick, t, p, declarer } = ctx;
+    const legal = legalCards(hand, trick, t);
+    if (legal.length === 1) return legal[0];
+    const history = ctx.tricks || [];
+    const played = [];
+    history.forEach((tr) => tr.forEach((e) => played.push(e.c)));
+    const trickNo = history.length;
+    const inTrick = trick.map((e) => e.c);
+    const unknown = ALL.filter((c) => !played.includes(c) && !hand.includes(c) && !inTrick.includes(c));
+    const voids = inferVoids(history.concat([trick]), t);
+    const others = [1, 2, 3].map((k) => (p + k) % 4);
+    const need = {};
+    others.forEach((q) => {
+      let n = 9 - trickNo;
+      if (trick.some((e) => e.p === q)) n--;
+      need[q] = n;
+    });
+    const rnd = makeRng(ctx.seed != null ? ctx.seed : Math.floor(Math.random() * 1e9));
+    const budget = ctx.samples || Math.max(16, Math.min(60, Math.floor(320 / legal.length)));
+    const myTeam = team(p);
+    const won = ctx.tricksWon || [0, 0];
+    const score = legal.map(() => 0);
+    for (let k = 0; k < budget; k++) {
+      const sh = sampleHands(unknown, others, need, voids, t, rnd);
+      const hands = [];
+      hands[p] = hand; others.forEach((q) => (hands[q] = sh[q]));
+      legal.forEach((c, i) => {
+        const h2 = hands.slice(); h2[p] = hand.filter((x) => x !== c);
+        const tr2 = trick.concat([{ p, c }]);
+        const r = rolloutFrom(h2, tr2, played, (p + 1) % 4, trickNo, t, declarer);
+        let mine = r.pts[myTeam], theirs = r.pts[1 - myTeam];
+        if (won[myTeam] + r.tricks[myTeam] === 9) mine += 100;
+        if (won[1 - myTeam] + r.tricks[1 - myTeam] === 9) theirs += 100;
+        score[i] += mine - theirs;
+      });
+    }
+    let best = 0;
+    for (let i = 1; i < legal.length; i++) if (score[i] > score[best]) best = i;
+    return legal[best];
+  }
+
+  // wie rollout, aber der laufende Stich darf bereits voll sein
+  function rolloutFrom(hands, trick, played, turn, trickNo, t, declarer) {
+    if (trick.length < 4) return rollout(hands, trick, played, turn, trickNo, t, declarer);
+    const w = trick[trickWinnerIdx(trick, t)].p;
+    let sum = 0;
+    const pl = played.slice();
+    for (const e of trick) { sum += points(e.c, t); pl.push(e.c); }
+    if (trickNo === 8) sum += 5;
+    const pts = [0, 0], tricks = [0, 0];
+    pts[team(w)] += sum; tricks[team(w)]++;
+    if (trickNo === 8) return { pts, tricks };
+    const r = rollout(hands, [], pl, w, trickNo + 1, t, declarer);
+    return { pts: [pts[0] + r.pts[0], pts[1] + r.pts[1]], tricks: [tricks[0] + r.tricks[0], tricks[1] + r.tricks[1]] };
+  }
+
+  // Trumpfwahl per Simulation: für jeden Modus zufällige Verteilungen der
+  // übrigen 27 Karten durchspielen; Wert = Punkteunterschied × Multiplikator.
+  // Schieben wird gleich bewertet: der Partner wählt dann mit der Heuristik.
+  function botChooseTrumpSmart(hand, canPush, p, multMode, opts) {
+    opts = opts || {};
+    const rnd = makeRng(opts.seed != null ? opts.seed : Math.floor(Math.random() * 1e9));
+    const n = opts.samples || 24;
+    const others = [1, 2, 3].map((k) => (p + k) % 4);
+    const unknown = ALL.filter((c) => !hand.includes(c));
+    const myTeam = team(p);
+    const val = [0, 0, 0, 0, 0, 0], pushVal = { v: 0 };
+    const noVoids = [0, 1, 2, 3].map(() => [false, false, false, false]);
+    const need = {}; others.forEach((q) => (need[q] = 9));
+    const evalMode = (hands, m) => {
+      const r = rollout(hands, [], [], p, 0, m, p);
+      let mine = r.pts[myTeam], theirs = r.pts[1 - myTeam];
+      if (r.tricks[myTeam] === 9) mine += 100;
+      if (r.tricks[1 - myTeam] === 9) theirs += 100;
+      return (mine - theirs) * multiplier(m, multMode);
+    };
+    for (let k = 0; k < n; k++) {
+      const sh = sampleHands(unknown, others, need, noVoids, 0, rnd);
+      const hands = []; hands[p] = hand; others.forEach((q) => (hands[q] = sh[q]));
+      for (let m = 0; m < 6; m++) val[m] += evalMode(hands, m);
+      if (canPush) {
+        const partner = (p + 2) % 4;
+        const pm = botChooseTrump(hands[partner], false);
+        pushVal.v += evalMode(hands, pm);
+      }
+    }
+    let best = 0;
+    for (let m = 1; m < 6; m++) if (val[m] > val[best]) best = m;
+    if (canPush && pushVal.v > val[best]) return "push";
+    return best;
+  }
+
   const api = {
     OBE, UNDE, ALL, suitOf, rankOf, team, points, isTrump, power, trickWinnerIdx, legalCards,
     findWeis, resolveWeis, findStoeck, multiplier, deal, shuffle, sortHand, evalTrump,
-    botChooseTrump, botPlay, scoreRound, applyScore, SEQ_NAME, TRUMP_STR,
+    botChooseTrump, botPlay, botPlaySmart, botChooseTrumpSmart, inferVoids, scoreRound, applyScore, SEQ_NAME, TRUMP_STR,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.JassEngine = api;
