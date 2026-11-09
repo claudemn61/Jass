@@ -1160,6 +1160,7 @@ function TafelRueckseite({ striche }) {
 
 function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) {
   const [side, setSide] = useState("vorne");
+  const [edit, setEdit] = useState(false); // Striche bearbeiten ein-/ausgeblendet
   return (
     <Modal title="Jasstafel" onClose={onClose} wide>
       <div style={{ marginBottom: 10 }}>
@@ -1172,6 +1173,8 @@ function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) 
           <div style={{ fontSize: 12, color: C.dim, margin: "10px 0" }}>
             Über alle Spiele (bei Spielabbruch werden die Striche dieses Spiels entfernt): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg 1 Strich ({bergOf(game.target) ? bergOf(game.target) + " Punkte zuerst erreicht" : "bei Ziel " + game.target + " ohne Berg"}).
           </div>
+          <button onClick={() => setEdit(!edit)} style={{ ...btn(false), padding: "6px 12px", fontSize: 13, marginBottom: 8 }}>{edit ? "Bearbeiten ausblenden ▲" : "Striche bearbeiten ▼"}</button>
+          {edit && <>
           <div style={{ fontSize: 13, color: C.dim, margin: "4px 0 6px" }}>Einzelne Striche löschen:</div>
           <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 6, alignItems: "center", marginBottom: 12, fontSize: 13 }}>
             <div></div><div style={{ color: C.dim }}>{teamName(0)}</div><div style={{ color: C.dim }}>{teamName(1)}</div>
@@ -1188,6 +1191,7 @@ function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) 
             ))}
           </div>
           <button onClick={() => { if (window.confirm("Rückseite der Tafel abwischen (alle Striche löschen)?")) onResetStriche(); }} style={btn(false)}>Tafel abwischen</button>
+          </>}
         </div>
       )}
       {side === "liste" && (
