@@ -816,7 +816,7 @@ function RulesModal({ onClose, deck }) {
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
+      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -976,11 +976,8 @@ function TafelVorderseite({ game, pad }) {
         })}
         {/* 20er: Fünferbündel */}
         <Tally n={Math.min(s.z, 40)} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
-        {/* Einer: kleine Striche rechts der unteren Linie, Minus-Einer als waagrechte Striche */}
-        <Tally n={Math.max(0, s.einer)} sx={R + 10} sy={B - 4} ux={1} uy={0} nx={0} ny={1} len={10} step={4.5} seed={team * 1000 + 700} />
-        {Array.from({ length: Math.max(0, -s.einer) }, (_, i) => (
-          <ChalkLine key={"m" + i} x1={R + 16} y1={B - 6 - i * 6} x2={R + 30} y2={B - 6 - i * 6} seed={team * 1000 + 800 + i} w={1.8} />
-        ))}
+        {/* Einer als Zahl rechts der unteren Linie (angepasst, ggf. negativ) */}
+        {s.einer !== 0 && <ChalkText x={R + 24} y={B + 7} size={20} anchor="middle">{s.einer < 0 ? "−" + (-s.einer) : s.einer}</ChalkText>}
         <ChalkText x={L} y={oy + 26} size={22}>{TEAM[team]}</ChalkText>
         <ChalkText x={L + 6} y={T + 64} size={15}>{game.scores[team]}</ChalkText>
         {game.berg === team && <ChalkText x={R - 70} y={B - 22} size={13}>Berg ✓</ChalkText>}
