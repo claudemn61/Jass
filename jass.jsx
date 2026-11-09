@@ -816,7 +816,7 @@ function RulesModal({ onClose, deck }) {
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z – 100er als Striche oben, 50er auf der Diagonale, 20er unten, die Einer als kleine Striche rechts davon. Ab 11 Einern wird stattdessen ein 20er-Strich mehr gemacht und der Unterschied mit waagrechten Minus-Strichen abgezogen (z.B. 18 = 20er und 2 Minus-Striche). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
+      {p("Vorderseite: pro Team ein Z mit dem Gesamtstand – 100er als Striche oben (je 500 als «V»), ein 50er auf der Diagonale, 20er unten, die Einer als kleine Striche rechts davon. Ab 11 Einern wird stattdessen ein 20er-Strich mehr gemacht und der Unterschied mit waagrechten Minus-Strichen abgezogen (z.B. 1031 = 2 × V, 2 × 20er, 9 Minus-Striche). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -868,22 +868,18 @@ function Tally({ n, sx, sy, ux, uy, nx, ny, len, step, seed }) {
   return <g>{out}</g>;
 }
 
-// Rundenpunkte wie beim Anschreiben zerlegen
-function tafelStriche(history, team) {
-  let h = 0, f = 0, z = 0, rest = 0;
-  history.forEach((e) => {
-    const p = e.total[team];
-    h += Math.floor(p / 100);
-    f += Math.floor((p % 100) / 50);
-    z += Math.floor((p % 50) / 20);
-    rest += (p % 50) % 20;
-    while (rest >= 20) { z++; rest -= 20; }
-  });
-  // Einer als Striche; ab 11 ist «ein 20er mehr und Minus-Striche» kürzer
-  // (z.B. 18 = 20er-Strich und 2 Minus-Striche statt 18 Einer-Striche).
-  let minus = 0;
+// Gesamtstand wie auf der Jasstafel zerlegen:
+// Hunderter (je 500 als «V», Rest als Striche), höchstens ein 50er auf der
+// Diagonale, 20er unten, Einer als kleine Striche – ab 11 Einern ein 20er
+// mehr und der Unterschied als Minus-Striche (z.B. 1031 = 2×V, 2×20er, −9).
+function tafelStriche(total) {
+  const hund = Math.floor(total / 100);
+  let r = total % 100;
+  const f = r >= 50 ? 1 : 0;
+  r -= f * 50;
+  let z = Math.floor(r / 20), rest = r % 20, minus = 0;
   if (rest >= 11) { z++; minus = 20 - rest; rest = 0; }
-  return { h, f, z, rest, minus };
+  return { v: Math.floor(hund / 5), h: hund % 5, f, z, rest, minus };
 }
 
 function SlateDefs() {
@@ -924,7 +920,7 @@ function Slate({ w, h, children, pad }) {
 function TafelVorderseite({ game, pad }) {
   const W = 360, H = 500;
   const half = (team, oy) => {
-    const s = tafelStriche(game.history, team);
+    const s = tafelStriche(game.scores[team]);
     const L = 40, R = 300, T = oy + 46, B = oy + 196;
     const dx = L - R, dy = B - T, dl = Math.hypot(dx, dy);
     const ux = dx / dl, uy = dy / dl;
@@ -933,9 +929,19 @@ function TafelVorderseite({ game, pad }) {
         <ChalkLine x1={L} y1={T} x2={R} y2={T} seed={team * 100 + 1} w={2.6} />
         <ChalkLine x1={R} y1={T} x2={L} y2={B} seed={team * 100 + 2} w={2.6} />
         <ChalkLine x1={L} y1={B} x2={R} y2={B} seed={team * 100 + 3} w={2.6} />
-        <Tally n={Math.min(s.h, 35)} sx={L + 12} sy={T} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 100} />
-        <Tally n={Math.min(s.f, 30)} sx={R - 26} sy={T + 14} ux={ux} uy={uy} nx={-uy} ny={ux} len={14} step={7} seed={team * 1000 + 300} />
-        <Tally n={Math.min(s.z, 35)} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
+        {/* 500er als V, danach einzelne 100er-Striche */}
+        {Array.from({ length: Math.min(s.v, 12) }, (_, i) => {
+          const x = L + 10 + i * 18;
+          return (
+            <g key={"v" + i}>
+              <ChalkLine x1={x} y1={T - 10} x2={x + 6} y2={T + 9} seed={team * 1000 + 50 + i * 2} />
+              <ChalkLine x1={x + 6} y1={T + 9} x2={x + 12} y2={T - 10} seed={team * 1000 + 51 + i * 2} />
+            </g>
+          );
+        })}
+        <Tally n={s.h} sx={L + 14 + Math.min(s.v, 12) * 18} sy={T} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 100} />
+        <Tally n={s.f} sx={R - 26} sy={T + 14} ux={ux} uy={uy} nx={-uy} ny={ux} len={14} step={7} seed={team * 1000 + 300} />
+        <Tally n={s.z} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
         {/* Einer: kleine Striche rechts der unteren Linie, oder Minus-Striche (waagrecht) */}
         <Tally n={s.rest} sx={R + 10} sy={B - 4} ux={1} uy={0} nx={0} ny={1} len={10} step={4.5} seed={team * 1000 + 700} />
         {Array.from({ length: s.minus }, (_, i) => (
