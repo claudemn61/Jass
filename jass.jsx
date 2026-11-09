@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.1.1";
+const APP_VERSION = "1.1.2";
 
 const CHANGELOG = [
+  {
+    version: "1.1.2",
+    changes: [
+      "Striche (Rückseite der Jasstafel) gelten für das laufende Spiel und werden bei jedem neuen Spiel gelöscht – keine verwaisten Berg-Striche mehr nach abgebrochenen Spielen",
+    ],
+  },
   {
     version: "1.1.1",
     changes: [
@@ -942,7 +948,7 @@ function RulesModal({ onClose, deck }) {
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
+      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (für das laufende Spiel, wird bei jedem neuen Spiel gelöscht): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -1160,7 +1166,7 @@ function TafelModal({ game, deck, striche, onResetStriche, onClose }) {
         <div>
           <TafelRueckseite striche={striche} />
           <div style={{ fontSize: 12, color: C.dim, margin: "10px 0" }}>
-            Über alle Partien: jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg 1 Strich ({bergOf(game.target) ? bergOf(game.target) + " Punkte zuerst erreicht" : "bei Ziel " + game.target + " ohne Berg"}).
+            Für das laufende Spiel (wird bei «Neues Spiel» gelöscht): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg 1 Strich ({bergOf(game.target) ? bergOf(game.target) + " Punkte zuerst erreicht" : "bei Ziel " + game.target + " ohne Berg"}).
           </div>
           <button onClick={() => { if (window.confirm("Rückseite der Tafel abwischen (alle Striche löschen)?")) onResetStriche(); }} style={btn(false)}>Tafel abwischen</button>
         </div>
@@ -1409,7 +1415,8 @@ function JassApp() {
     return () => clearTimeout(timer);
   }, [game, home, manual]);
 
-  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setGame(newGame(settings)); };
+  // Neues Spiel: auch die Striche (Rückseite der Jasstafel) werden gelöscht
+  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] }); setGame(newGame(settings)); };
   const askNew = () => {
     if (game && !game.over && (game.history.length || (game.round && game.round.trickNo > 0))) {
       if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen?")) return;
