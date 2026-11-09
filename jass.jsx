@@ -1432,6 +1432,10 @@ function JassApp() {
     return "translate(" + dx + "px," + dy + "px) rotate(" + rot + "deg)";
   };
   const winnerIdx = r.phase === "trickDone" ? E.trickWinnerIdx(r.trick, r.trump) : -1;
+  // Wem gehört der Stich im Moment? (grün markiert: Karte in der Mitte und Spieler)
+  const STICH = "#4ade80";
+  const curIdx = r.trick.length ? E.trickWinnerIdx(r.trick, r.trump) : -1;
+  const curHolder = curIdx >= 0 ? r.trick[curIdx].p : null;
 
   const status = (() => {
     if (r.phase === "choose") return r.decider === 0 ? (r.pushed ? NAMES[2] + " hat geschoben – du wählst" : "Du bestimmst den Trumpf") : NAMES[r.decider] + " überlegt…" + (r.pushed ? " (geschoben)" : "");
@@ -1454,8 +1458,11 @@ function JassApp() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: align || "center", gap: 3, marginTop: 4 }}>
         {ws.map((w, i) => (
-          <div key={i} style={{ fontSize: 11, padding: "2px 7px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: "1px solid rgba(244,196,48,0.6)", color: C.text, maxWidth: 140, textAlign: "center", lineHeight: 1.3 }}>
-            {describeWeis(w, deck)} <b style={{ color: C.gold }}>{w.pts}</b>
+          <div key={i} title={describeWeis(w, deck)} style={{ fontSize: 11, padding: "1px 6px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: "1px solid rgba(244,196,48,0.6)", color: C.text, whiteSpace: "nowrap", lineHeight: 1.4 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              {w.type === "four" ? "4×" + RANK_LABEL[deck][w.r] : <>{w.len}-Bl.<SuitIcon s={w.s} deck={deck} size={12} />{RANK_LABEL[deck][w.hi]}</>}
+              <b style={{ color: C.gold, marginLeft: 3 }}>{w.pts}</b>
+            </span>
           </div>
         ))}
       </div>
@@ -1467,7 +1474,9 @@ function JassApp() {
     const isDecider = r.trump != null && r.decider === p;
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-        <div style={{ padding: "4px 10px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13, fontWeight: 700, border: "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line) }}>
+        <div style={{ padding: "4px 10px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13, fontWeight: 700,
+          border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
+          boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
           {NAMES[p]}{isDecider ? " ★" : ""}
         </div>
         <div style={{ fontSize: 11, color: C.dim }}>{r.hands[p].length} Karten</div>
@@ -1511,7 +1520,7 @@ function JassApp() {
         <Seat p={1} style={{ top: "42%", right: 8 }} />
         <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0 }}>
           {r.trick.map((e, i) => (
-            <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, transform: trickPos(e.p), zIndex: i, transition: "transform 0.2s", filter: winnerIdx >= 0 && i !== winnerIdx ? "brightness(0.8)" : "none" }}>
+            <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, transform: trickPos(e.p), zIndex: i, transition: "transform 0.2s", filter: i === curIdx ? "drop-shadow(0 0 4px " + STICH + ") drop-shadow(0 0 2px " + STICH + ")" : winnerIdx >= 0 ? "brightness(0.8)" : "none" }}>
               <Card id={e.c} deck={deck} w={tw} trump={E.isTrump(e.c, r.trump)} />
             </div>
           ))}
