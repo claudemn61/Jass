@@ -30,12 +30,18 @@ function save(key, val) {
   try { if (val == null) localStorage.removeItem("jass:" + key); else localStorage.setItem("jass:" + key, JSON.stringify(val)); } catch (e) {}
 }
 
-const DEFAULT_SETTINGS = { deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark" };
+const DEFAULT_NAMES = ["Du", "Rechts", "Partner", "Links"];
+const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark" };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
 const RANK_NAME = { ch: ["Sechser", "Siebner", "Achter", "Nell", "Banner", "Under", "Ober", "König", "Ass"], fr: ["Sechser", "Siebner", "Achter", "Nell", "Zehner", "Bube", "Dame", "König", "Ass"] };
-const NAMES = ["Du", "Rechts", "Partner", "Links"];
+// Aktuelle Spielernamen (Sitz 0 unten = du, 1 rechts, 2 oben = Partner, 3 links);
+// werden in JassApp aus den Einstellungen gesetzt.
+let NAMES = DEFAULT_NAMES.slice();
+const teamName = (t) => NAMES[t] + " & " + NAMES[t + 2];
+// «Du wählst» vs. «Anna wählt»
+const verb = (p, du, er) => (p === 0 && NAMES[0] === "Du" ? du : er);
 const TEAM = ["Wir", "Ihr"];
 const C = { felt: "#0f3d2e", felt2: "#0a2c21", gold: "#f4c430", text: "#f1f5f1", dim: "rgba(241,245,241,0.6)", panel: "#123f31", line: "rgba(255,255,255,0.12)", red: "#d23b3b" };
 
@@ -856,6 +862,18 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   );
   return (
     <Modal title="Einstellungen" onClose={onClose} page>
+      {row("Namen der Spieler", (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {[[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]].map(([i, lab]) => (
+            <label key={i} style={{ fontSize: 12, color: C.dim }}>
+              {lab}
+              <input value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14}
+                onChange={(e) => { const n = (settings.names || DEFAULT_NAMES).slice(); n[i] = e.target.value; set("names", n); }}
+                style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 3, padding: "8px 10px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 15, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
+            </label>
+          ))}
+        </div>
+      ), "Leeres Feld = Standardname.")}
       {row("Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Deutschschweizer"], ["fr", "Französisch"]]} />)}
       {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
       {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
@@ -1005,20 +1023,20 @@ function hundertZeichen(seq, x0, y, team) {
   seq.slice(0, 60).forEach((c, i) => {
     const seed = team * 1000 + 100 + i * 3;
     if (c === "V") {
-      out.push(<g key={i}><ChalkLine x1={x} y1={y - 10} x2={x + 6} y2={y + 9} seed={seed} /><ChalkLine x1={x + 6} y1={y + 9} x2={x + 12} y2={y - 10} seed={seed + 1} /></g>);
-      x += 19;
+      out.push(<g key={i}><ChalkLine x1={x} y1={y - 15} x2={x + 9} y2={y + 13} seed={seed} /><ChalkLine x1={x + 9} y1={y + 13} x2={x + 18} y2={y - 15} seed={seed + 1} /></g>);
+      x += 28;
       nI = 0; vert = []; // nach einem V beginnt ein neues Bündel
       return;
     }
     if (nI % 5 === 4) {
       // fünfter Strich schräg über die vier Senkrechten des Bündels
-      out.push(<ChalkLine key={i} x1={vert[0] - 3} y1={y + 7} x2={vert[vert.length - 1] + 3} y2={y - 7} seed={seed} />);
+      out.push(<ChalkLine key={i} x1={vert[0] - 4} y1={y + 10} x2={vert[vert.length - 1] + 4} y2={y - 10} seed={seed} />);
       vert = [];
-      x += 5;
+      x += 8;
     } else {
-      out.push(<ChalkLine key={i} x1={x} y1={y - 8} x2={x} y2={y + 8} seed={seed} />);
+      out.push(<ChalkLine key={i} x1={x} y1={y - 12} x2={x} y2={y + 12} seed={seed} />);
       vert.push(x);
-      x += 7;
+      x += 10.5;
     }
     nI++;
   });
@@ -1041,16 +1059,16 @@ function TafelVorderseite({ game, pad }) {
         {hundertZeichen(s.hundert, L + 12, T, team)}
         {/* 50er: je zwei Striche über Kreuz (zusammen ein Hunderter) */}
         {Array.from({ length: Math.min(s.f, 24) }, (_, i) => {
-          const k = Math.floor(i / 2), d = 26 + k * 14;
+          const k = Math.floor(i / 2), d = 34 + k * 21;
           const cx = R + ux * d, cy = T + uy * d + 2;
-          const a = Math.atan2(uy, ux) + (i % 2 === 0 ? 1.1 : -1.1), l = 8;
+          const a = Math.atan2(uy, ux) + (i % 2 === 0 ? 1.1 : -1.1), l = 12;
           return <ChalkLine key={"f" + i} x1={cx - Math.cos(a) * l} y1={cy - Math.sin(a) * l} x2={cx + Math.cos(a) * l} y2={cy + Math.sin(a) * l} seed={team * 1000 + 300 + i} />;
         })}
         {/* 20er: Fünferbündel */}
-        <Tally n={Math.min(s.z, 40)} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
+        <Tally n={Math.min(s.z, 30)} sx={L + 14} sy={B} ux={1} uy={0} nx={0} ny={1} len={24} step={10.5} seed={team * 1000 + 500} />
         {/* Einer als Zahl rechts der unteren Linie (angepasst, ggf. negativ) */}
         {s.einer !== 0 && <ChalkText x={R + 24} y={B + 7} size={20} anchor="middle">{s.einer < 0 ? "−" + (-s.einer) : s.einer}</ChalkText>}
-        <ChalkText x={L} y={oy + 26} size={22}>{TEAM[team]}</ChalkText>
+        <ChalkText x={W / 2} y={oy + 24} size={20} anchor="middle">{teamName(team)}</ChalkText>
         <ChalkText x={L + 6} y={T + 64} size={15}>{game.scores[team]}</ChalkText>
         {game.berg === team && <ChalkText x={R - 70} y={B - 22} size={13}>Berg ✓</ChalkText>}
       </g>
@@ -1072,8 +1090,8 @@ function TafelRueckseite({ striche }) {
   const total = (t) => rows.reduce((s, [, k, f]) => s + striche[k][t] * f, 0);
   return (
     <Slate w={W} h={H}>
-      <ChalkText x={W * 0.3} y={38} size={22} anchor="middle">Wir</ChalkText>
-      <ChalkText x={W * 0.72} y={38} size={22} anchor="middle">Ihr</ChalkText>
+      <ChalkText x={W * 0.25} y={38} size={NAMES[0].length + NAMES[2].length > 14 ? 13 : 17} anchor="middle">{teamName(0)}</ChalkText>
+      <ChalkText x={W * 0.75} y={38} size={NAMES[1].length + NAMES[3].length > 14 ? 13 : 17} anchor="middle">{teamName(1)}</ChalkText>
       <ChalkLine x1={W * 0.5} y1={18} x2={W * 0.5} y2={H - 60} seed={11} w={1.8} />
       <ChalkLine x1={14} y1={52} x2={W - 14} y2={52} seed={12} w={1.8} />
       {rows.map(([label, k, f], i) => {
@@ -1088,8 +1106,8 @@ function TafelRueckseite({ striche }) {
         );
       })}
       <ChalkLine x1={14} y1={H - 52} x2={W - 14} y2={H - 52} seed={13} w={1.8} />
-      <ChalkText x={W * 0.3} y={H - 20} size={20} anchor="middle">= {total(0)}</ChalkText>
-      <ChalkText x={W * 0.72} y={H - 20} size={20} anchor="middle">= {total(1)}</ChalkText>
+      <ChalkText x={W * 0.25} y={H - 20} size={20} anchor="middle">= {total(0)}</ChalkText>
+      <ChalkText x={W * 0.75} y={H - 20} size={20} anchor="middle">= {total(1)}</ChalkText>
     </Slate>
   );
 }
@@ -1249,6 +1267,7 @@ function JassApp() {
   useEffect(() => { reloadImgs(); }, []);
   const vw = useWidth();
   const deck = settings.deck;
+  NAMES = [0, 1, 2, 3].map((i) => ((settings.names && settings.names[i]) || "").trim() || DEFAULT_NAMES[i]);
   const sp = SPEEDS[settings.speed] || SPEEDS.normal;
 
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
@@ -1269,11 +1288,11 @@ function JassApp() {
   // Zustandsübergänge mit Ansagen
   const choose = (g, t) => {
     const r = g.round;
-    say(NAMES[r.decider] + (r.decider === 0 ? " wählst " : " wählt ") + modeName(t, deck));
+    say(NAMES[r.decider] + verb(r.decider, " wählst ", " wählt ") + modeName(t, deck));
     setGame(doChoose(g, t));
   };
   const push = (g) => {
-    say(NAMES[g.round.chooser] + (g.round.chooser === 0 ? " schiebst" : " schiebt"));
+    say(NAMES[g.round.chooser] + verb(g.round.chooser, " schiebst", " schiebt"));
     setGame(doPush(g));
   };
   const play = (g, p, c) => {
@@ -1412,7 +1431,7 @@ function JassApp() {
   const winnerIdx = r.phase === "trickDone" ? E.trickWinnerIdx(r.trick, r.trump) : -1;
 
   const status = (() => {
-    if (r.phase === "choose") return r.decider === 0 ? (r.pushed ? "Partner hat geschoben – du wählst" : "Du bestimmst den Trumpf") : NAMES[r.decider] + " überlegt…" + (r.pushed ? " (geschoben)" : "");
+    if (r.phase === "choose") return r.decider === 0 ? (r.pushed ? NAMES[2] + " hat geschoben – du wählst" : "Du bestimmst den Trumpf") : NAMES[r.decider] + " überlegt…" + (r.pushed ? " (geschoben)" : "");
     if (r.phase === "play") return myTurn ? (selected != null && !settings.oneTap ? "Nochmals tippen zum Spielen" : "Du bist dran") : NAMES[r.turn] + " ist dran";
     if (r.phase === "trickDone") return NAMES[r.trick[winnerIdx].p] + " sticht";
     return "";
