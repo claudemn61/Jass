@@ -816,7 +816,7 @@ function RulesModal({ onClose, deck }) {
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z mit dem Gesamtstand – 100er als Striche oben (je 500 als «V»), ein 50er auf der Diagonale, 20er unten, die Einer als kleine Striche rechts davon. Ab 11 Einern wird stattdessen ein 20er-Strich mehr gemacht und der Unterschied mit waagrechten Minus-Strichen abgezogen (z.B. 1031 = 2 × V, 2 × 20er, 9 Minus-Striche). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
+      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -868,18 +868,26 @@ function Tally({ n, sx, sy, ux, uy, nx, ny, len, step, seed }) {
   return <g>{out}</g>;
 }
 
-// Gesamtstand wie auf der Jasstafel zerlegen:
-// Hunderter (je 500 als «V», Rest als Striche), höchstens ein 50er auf der
-// Diagonale, 20er unten, Einer als kleine Striche – ab 11 Einern ein 20er
-// mehr und der Unterschied als Minus-Striche (z.B. 1031 = 2×V, 2×20er, −9).
-function tafelStriche(total) {
-  const hund = Math.floor(total / 100);
-  let r = total % 100;
-  const f = r >= 50 ? 1 : 0;
-  r -= f * 50;
-  let z = Math.floor(r / 20), rest = r % 20, minus = 0;
-  if (rest >= 11) { z++; minus = 20 - rest; rest = 0; }
-  return { v: Math.floor(hund / 5), h: hund % 5, f, z, rest, minus };
+// Anschreiben wie auf der echten Jasstafel: jede Runde wird ergänzt, nichts
+// wird ausradiert – ausser den Einern, die jeweils angepasst werden.
+// Pro Runde: 100er als Striche (je 500 in derselben Runde als «V»),
+// ein 50er auf der Diagonale, 20er unten, der Rest geht in die Einer.
+// Einer ab 11 → ein 20er-Strich mehr und Minus-Einer (9 + 8 = 20er und −3).
+function tafelStriche(history, team) {
+  const hundert = []; // Reihenfolge der Zeichen oben: "I" oder "V"
+  let f = 0, z = 0, einer = 0;
+  history.forEach((e) => {
+    const p = e.total[team];
+    const hund = Math.floor(p / 100);
+    for (let i = 0; i < Math.floor(hund / 5); i++) hundert.push("V");
+    for (let i = 0; i < hund % 5; i++) hundert.push("I");
+    let r = p % 100;
+    if (r >= 50) { f++; r -= 50; }
+    z += Math.floor(r / 20);
+    einer += r % 20;
+    if (einer >= 11) { z++; einer -= 20; }
+  });
+  return { hundert, f, z, einer };
 }
 
 function SlateDefs() {
@@ -917,10 +925,38 @@ function Slate({ w, h, children, pad }) {
   );
 }
 
+// Zeichen auf der 100er-Linie in Schreibreihenfolge; «I» werden laufend zu
+// Fünferbündeln zusammengefasst, «V» steht für sich.
+function hundertZeichen(seq, x0, y, team) {
+  const out = [];
+  let x = x0, nI = 0, vert = []; // vert: x-Positionen der Senkrechten im laufenden Bündel
+  seq.slice(0, 60).forEach((c, i) => {
+    const seed = team * 1000 + 100 + i * 3;
+    if (c === "V") {
+      out.push(<g key={i}><ChalkLine x1={x} y1={y - 10} x2={x + 6} y2={y + 9} seed={seed} /><ChalkLine x1={x + 6} y1={y + 9} x2={x + 12} y2={y - 10} seed={seed + 1} /></g>);
+      x += 19;
+      nI = 0; vert = []; // nach einem V beginnt ein neues Bündel
+      return;
+    }
+    if (nI % 5 === 4) {
+      // fünfter Strich schräg über die vier Senkrechten des Bündels
+      out.push(<ChalkLine key={i} x1={vert[0] - 3} y1={y + 7} x2={vert[vert.length - 1] + 3} y2={y - 7} seed={seed} />);
+      vert = [];
+      x += 5;
+    } else {
+      out.push(<ChalkLine key={i} x1={x} y1={y - 8} x2={x} y2={y + 8} seed={seed} />);
+      vert.push(x);
+      x += 7;
+    }
+    nI++;
+  });
+  return out;
+}
+
 function TafelVorderseite({ game, pad }) {
   const W = 360, H = 500;
   const half = (team, oy) => {
-    const s = tafelStriche(game.scores[team]);
+    const s = tafelStriche(game.history, team);
     const L = 40, R = 300, T = oy + 46, B = oy + 196;
     const dx = L - R, dy = B - T, dl = Math.hypot(dx, dy);
     const ux = dx / dl, uy = dy / dl;
@@ -929,22 +965,20 @@ function TafelVorderseite({ game, pad }) {
         <ChalkLine x1={L} y1={T} x2={R} y2={T} seed={team * 100 + 1} w={2.6} />
         <ChalkLine x1={R} y1={T} x2={L} y2={B} seed={team * 100 + 2} w={2.6} />
         <ChalkLine x1={L} y1={B} x2={R} y2={B} seed={team * 100 + 3} w={2.6} />
-        {/* 500er als V, danach einzelne 100er-Striche */}
-        {Array.from({ length: Math.min(s.v, 12) }, (_, i) => {
-          const x = L + 10 + i * 18;
-          return (
-            <g key={"v" + i}>
-              <ChalkLine x1={x} y1={T - 10} x2={x + 6} y2={T + 9} seed={team * 1000 + 50 + i * 2} />
-              <ChalkLine x1={x + 6} y1={T + 9} x2={x + 12} y2={T - 10} seed={team * 1000 + 51 + i * 2} />
-            </g>
-          );
+        {/* 100er: Fünferbündel (4 senkrecht + 1 schräg darüber), «V» = 500 in einer Runde */}
+        {hundertZeichen(s.hundert, L + 12, T, team)}
+        {/* 50er: je zwei Striche über Kreuz (zusammen ein Hunderter) */}
+        {Array.from({ length: Math.min(s.f, 24) }, (_, i) => {
+          const k = Math.floor(i / 2), d = 26 + k * 14;
+          const cx = R + ux * d, cy = T + uy * d + 2;
+          const a = Math.atan2(uy, ux) + (i % 2 === 0 ? 1.1 : -1.1), l = 8;
+          return <ChalkLine key={"f" + i} x1={cx - Math.cos(a) * l} y1={cy - Math.sin(a) * l} x2={cx + Math.cos(a) * l} y2={cy + Math.sin(a) * l} seed={team * 1000 + 300 + i} />;
         })}
-        <Tally n={s.h} sx={L + 14 + Math.min(s.v, 12) * 18} sy={T} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 100} />
-        <Tally n={s.f} sx={R - 26} sy={T + 14} ux={ux} uy={uy} nx={-uy} ny={ux} len={14} step={7} seed={team * 1000 + 300} />
-        <Tally n={s.z} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
-        {/* Einer: kleine Striche rechts der unteren Linie, oder Minus-Striche (waagrecht) */}
-        <Tally n={s.rest} sx={R + 10} sy={B - 4} ux={1} uy={0} nx={0} ny={1} len={10} step={4.5} seed={team * 1000 + 700} />
-        {Array.from({ length: s.minus }, (_, i) => (
+        {/* 20er: Fünferbündel */}
+        <Tally n={Math.min(s.z, 40)} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
+        {/* Einer: kleine Striche rechts der unteren Linie, Minus-Einer als waagrechte Striche */}
+        <Tally n={Math.max(0, s.einer)} sx={R + 10} sy={B - 4} ux={1} uy={0} nx={0} ny={1} len={10} step={4.5} seed={team * 1000 + 700} />
+        {Array.from({ length: Math.max(0, -s.einer) }, (_, i) => (
           <ChalkLine key={"m" + i} x1={R + 16} y1={B - 6 - i * 6} x2={R + 30} y2={B - 6 - i * 6} seed={team * 1000 + 800 + i} w={1.8} />
         ))}
         <ChalkText x={L} y={oy + 26} size={22}>{TEAM[team]}</ChalkText>

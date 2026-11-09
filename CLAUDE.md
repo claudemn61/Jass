@@ -19,8 +19,9 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   oder Verwerfen; Bock des Partners → Karte direkt darunter zugeben; vom Partner verworfene Farbe
   nicht anspielen. Bedanken: Gegner automatisch bei Erreichen der Zielpunkte, für «Wir» per Knopf (falsch bedankt =
   verloren); am Rundenende normale Abrechnung (Stöck – Weis – Stich).
-- Jasstafel (`TafelModal`): Schiefer-Optik als SVG. Vorderseite Z mit dem Gesamtstand (500 als «V», 100er-Striche, max. ein
-  50er, 20er, Einer als Striche, ab 11 Einern 20er + Minus-Striche; z.B. 1031 = 2×V, 2×20er, −9), Rückseite Striche über alle Partien (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
+- Jasstafel (`TafelModal`): Schiefer-Optik als SVG. Vorderseite Z, pro Runde ergänzt (nie ausradiert): 100er in Fünferbündeln (V nur bei 500
+  in einer Runde), 50er je zwei über Kreuz, 20er in Fünferbündeln; nur Einer werden angepasst
+  (ab 11 → 20er-Strich + Minus-Einer, z.B. 9 + 8 = 20er und −3). Rückseite Striche über alle Partien (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB
