@@ -12,7 +12,12 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   im Browser als `window.JassEngine`, in Node per `require()` testbar (`node tests/sim.js`).
 - Computer-Spieler: Stufe «Stark» = Monte-Carlo-Suche (`botPlaySmart`, `botChooseTrumpSmart`) mit
   der Heuristik `botPlay` als Rollout; Stufe «Normal» = nur Heuristik. Spielstärke messen mit
-  `node tests/strength.js [runden] [mcTrumpf 0/1] [seed]` (MC-Team gegen Heuristik-Team).
+  `node tests/strength.js [runden] [mcTrumpf 0/1] [seed]` (MC-Team gegen Heuristik-Team) und ganze
+  Partien zweier Engine-Versionen: `node tests/duel.js <engineA.js> <engineB.js> [partien] [seed] [ziel]`
+  (alte Version z.B. per `git show <commit>:engine.js > /tmp/alt.js`).
+- Partnerregeln (in `botPlay`): erster Abwurf = Verwerfen (schwache Farbe), danach Schmieren
+  oder Verwerfen; Bock des Partners → Karte direkt darunter zugeben; vom Partner verworfene Farbe
+  nicht anspielen. Bedanken: Spiel endet sofort bei Erreichen der Zielpunkte (Stöck – Weis – Stich).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB

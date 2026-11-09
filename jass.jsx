@@ -91,16 +91,29 @@ function doCollect(g) {
   const played = r.played.concat(r.trick.map((e) => e.c));
   const lastTrick = { cards: r.trick, winner: w, pts };
   const tricksLog = (r.tricksLog || []).concat([r.trick]);
+  let res, ap, bedankt = null;
   if (!last) {
-    return { ...g, round: { ...r, trick: [], turn: w, trickNo: r.trickNo + 1, phase: "play", trickPts, tricks, played, lastTrick, tricksLog } };
+    // Bedanken: erreicht ein Team während der Runde die Zielpunkte
+    // (Reihenfolge Stöck – Weis – Stich), endet das Spiel sofort.
+    const m = E.multiplier(r.trump, g.mult);
+    const stoeck = [0, 0];
+    if (r.stoeck != null && r.stoeckDone) stoeck[E.team(r.stoeck)] = 20;
+    const weis = r.weis ? r.weis.pts.slice() : [0, 0];
+    res = { mult: m, trick: trickPts, weis, stoeck, match: null, total: [0, 1].map((i) => (trickPts[i] + weis[i] + stoeck[i]) * m) };
+    ap = E.applyScore(g.scores, res, g.target);
+    if (ap.winner == null) {
+      return { ...g, round: { ...r, trick: [], turn: w, trickNo: r.trickNo + 1, phase: "play", trickPts, tricks, played, lastTrick, tricksLog } };
+    }
+    bedankt = r.trickNo + 1;
+  } else {
+    res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
+    ap = E.applyScore(g.scores, res, g.target);
   }
-  const res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
-  const ap = E.applyScore(g.scores, res, g.target);
   const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match };
   return {
     ...g, scores: ap.scores, history: g.history.concat([entry]),
     over: ap.winner != null ? { winner: ap.winner } : null,
-    round: { ...r, trick: [], turn: null, phase: "roundEnd", trickPts, tricks, played, lastTrick, tricksLog, trickNo: 9, result: res },
+    round: { ...r, trick: [], turn: null, phase: "roundEnd", trickPts, tricks, played, lastTrick, tricksLog, trickNo: 9, result: res, bedankt },
   };
 }
 function nextRound(g) {
@@ -573,7 +586,9 @@ function RulesModal({ onClose, deck }) {
       {h("Weis und Stöck")}
       {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Under 200, vier Nell 150, vier Ass/König/Ober/Zehner 100. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
-      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich.")}
+      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Das Spiel endet sofort, sobald ein Team das Ziel erreicht (Bedanken), auch mitten in der Runde.")}
+      {h("Computer-Spieler")}
+      {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
   );
 }
@@ -665,6 +680,7 @@ function RoundEndModal({ game, deck, onNext }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 14 }}>
         <ModeIcon t={r.trump} deck={deck} size={20} /> {modeName(r.trump, deck)} · {NAMES[r.decider]}{r.pushed ? " (geschoben)" : ""} · ×{res.mult}
       </div>
+      {r.bedankt && <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>{over && over.winner === 0 ? "Wir bedanken uns" : "Ihr bedankt euch"} – Zielpunkte nach Stich {r.bedankt} erreicht.</div>}
       {res.match != null && <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>Match für {TEAM[res.match]}!</div>}
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
         <thead><tr style={{ color: C.dim }}><th></th><th style={{ textAlign: "right", padding: 4 }}>Wir</th><th style={{ textAlign: "right", padding: 4 }}>Ihr</th></tr></thead>
@@ -768,12 +784,16 @@ function JassApp() {
     if (r.phase === "choose" && r.decider !== 0) {
       timer = setTimeout(() => {
         const strong = settings.level !== "normal";
-        const d = strong ? E.botChooseTrumpSmart(r.hands[r.decider], !r.pushed, r.decider, game.mult) : E.botChooseTrump(r.hands[r.decider], !r.pushed);
+        const d = strong ? E.botChooseTrumpSmart(r.hands[r.decider], !r.pushed, r.decider, game.mult, { scores: game.scores, target: game.target }) : E.botChooseTrump(r.hands[r.decider], !r.pushed);
         if (d === "push") push(game); else choose(game, d);
       }, sp.bot * 1.4);
     } else if (r.phase === "play" && r.turn !== 0) {
       timer = setTimeout(() => {
-        const ctx = { hand: r.hands[r.turn], trick: r.trick, t: r.trump, played: r.played, p: r.turn, declarer: r.chooser, tricks: r.tricksLog, tricksWon: r.tricks };
+        const m = E.multiplier(r.trump, game.mult);
+        const st = [0, 0]; if (r.stoeck != null && r.stoeckDone) st[E.team(r.stoeck)] = 20;
+        const wp = r.trickNo >= 1 && r.weis ? r.weis.pts : [0, 0];
+        const endgame = { run: [0, 1].map((i) => game.scores[i] + (st[i] + wp[i] + r.trickPts[i]) * m), mult: m, target: game.target };
+        const ctx = { hand: r.hands[r.turn], trick: r.trick, t: r.trump, played: r.played, p: r.turn, declarer: r.chooser, tricks: r.tricksLog, tricksWon: r.tricks, weis: r.weis, endgame };
         // Ältere Spielstände ohne Stichverlauf: Heuristik verwenden
         const c = settings.level !== "normal" && r.tricksLog && r.tricksLog.length === r.trickNo ? E.botPlaySmart(ctx) : E.botPlay(ctx);
         play(game, r.turn, c);
