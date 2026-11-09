@@ -1,7 +1,7 @@
 // ── Jass (Schieber) — Hauptseite ────────────────────────────────────────
 // Du + Partner (Computer) gegen zwei Computer-Gegner. Die Spiellogik liegt
 // in engine.js (window.JassEngine), hier nur Zustand, Ablauf und Darstellung.
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
 const APP_VERSION = "1.0.0";
@@ -30,7 +30,7 @@ function save(key, val) {
   try { if (val == null) localStorage.removeItem("jass:" + key); else localStorage.setItem("jass:" + key, JSON.stringify(val)); } catch (e) {}
 }
 
-const DEFAULT_SETTINGS = { deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false };
+const DEFAULT_SETTINGS = { deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
@@ -163,6 +163,28 @@ function Card({ id, deck, w, onClick, dim, raised, trump }) {
   const h = Math.round(w * 1.5);
   const label = RANK_LABEL[deck][r];
   const col = deck === "fr" && s < 2 ? C.red : "#1a1a1a";
+  const imgCtx = useContext(CardImgCtx);
+  const img = imgCtx.on && imgCtx.map[deck + ":" + id];
+  if (img) {
+    return (
+      <div onClick={onClick} style={{
+        width: w, height: h, borderRadius: w * 0.1, background: "#fff", overflow: "hidden",
+        boxShadow: raised ? "0 6px 14px rgba(0,0,0,0.5)" : "0 2px 5px rgba(0,0,0,0.45)",
+        outline: trump ? "2px solid " + C.gold : "none", outlineOffset: -2, position: "relative",
+        cursor: onClick ? "pointer" : "default", opacity: dim ? 0.5 : 1, filter: dim ? "grayscale(0.6)" : "none",
+        userSelect: "none", WebkitUserSelect: "none",
+        transform: raised ? "translateY(-14px)" : "none", transition: "transform 0.12s",
+      }}>
+        <img src={img} draggable={false} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }} />
+        {imgCtx.index && (
+          <div style={{ position: "absolute", left: 2, top: 2, background: "rgba(255,255,255,0.88)", borderRadius: 4, padding: "1px 2px", display: "flex", flexDirection: "column", alignItems: "center", pointerEvents: "none" }}>
+            <span style={{ fontSize: w * 0.22, fontWeight: 800, color: col, lineHeight: 1, fontFamily: "Georgia, serif" }}>{label}</span>
+            <SuitIcon s={s} deck={deck} size={w * 0.18} />
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div onClick={onClick} style={{
       width: w, height: h, borderRadius: w * 0.1, background: dim ? "#cfcfc7" : "#fbfaf4",
@@ -182,6 +204,140 @@ function Card({ id, deck, w, onClick, dim, raised, trump }) {
         <span style={{ fontSize: w * 0.3, fontWeight: 700, color: col, lineHeight: 1, fontFamily: "Georgia, serif" }}>{label}</span>
       </div>
     </div>
+  );
+}
+
+// ── Eigene Kartenbilder ──
+// Werden NUR lokal im Gerät gespeichert (IndexedDB "jass-bilder"), nie
+// hochgeladen und nicht Teil des Repos. Schlüssel: "<deck>:<kartenId>",
+// Wert: verkleinertes JPEG als Data-URL.
+const CardImgCtx = React.createContext({ on: false, index: true, map: {} });
+
+function imgDb() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open("jass-bilder", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("karten");
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function imgAll() {
+  const db = await imgDb();
+  return new Promise((res, rej) => {
+    const out = {};
+    const req = db.transaction("karten", "readonly").objectStore("karten").openCursor();
+    req.onsuccess = () => { const c = req.result; if (c) { out[c.key] = c.value; c.continue(); } else res(out); };
+    req.onerror = () => rej(req.error);
+  });
+}
+async function imgWrite(fn) {
+  const db = await imgDb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("karten", "readwrite");
+    fn(tx.objectStore("karten"));
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+// Bild auf max. 300×450 verkleinern (spart Speicher, reicht für die Anzeige)
+function shrinkImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      const f = Math.min(1, 300 / im.naturalWidth, 450 / im.naturalHeight);
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(im.naturalWidth * f); cv.height = Math.round(im.naturalHeight * f);
+      cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      res(cv.toDataURL("image/jpeg", 0.85));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Bild nicht lesbar: " + file.name)); };
+    im.src = url;
+  });
+}
+
+function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose }) {
+  const [busy, setBusy] = useState(null);
+  const multiRef = useRef(null);
+  const singleRef = useRef(null);
+  const slotRef = useRef(null);
+  const order = [0, 1, 2, 3].flatMap((s) => [0, 1, 2, 3, 4, 5, 6, 7, 8].map((r) => s * 9 + r));
+  const key = (id) => deck + ":" + id;
+  const count = order.filter((id) => imgs[key(id)]).length;
+
+  const store = async (pairs) => {
+    setBusy("Speichere " + pairs.length + " Bild(er)…");
+    try {
+      const data = [];
+      for (const [id, file] of pairs) data.push([key(id), await shrinkImage(file)]);
+      await imgWrite((st) => data.forEach(([k, v]) => st.put(v, k)));
+      await reload();
+      setBusy(null);
+    } catch (e) { setBusy("Fehler: " + (e.message || e)); }
+  };
+  const onMulti = (ev) => {
+    const files = Array.from(ev.target.files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    ev.target.value = "";
+    if (!files.length) return;
+    const start = Math.max(0, order.findIndex((id) => !imgs[key(id)]));
+    const ids = order.slice(start).concat(order.slice(0, start));
+    store(files.slice(0, 36).map((f, i) => [ids[i], f]));
+  };
+  const onSingle = (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (f && slotRef.current != null) store([[slotRef.current, f]]);
+  };
+  const removeAll = async () => {
+    if (!window.confirm("Alle eigenen Bilder für diese Karten löschen?")) return;
+    await imgWrite((st) => order.forEach((id) => st.delete(key(id))));
+    await reload();
+  };
+  const removeOne = async (id) => { await imgWrite((st) => st.delete(key(id))); await reload(); };
+
+  const toggle = (k) => setSettings({ ...settings, [k]: !settings[k] });
+  return (
+    <Modal title="Eigene Kartenbilder" onClose={onClose} wide>
+      <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 12 }}>
+        Fotos oder Scans deiner eigenen Karten ({deck === "ch" ? "Deutschschweizer" : "französische"} Karten). Die Bilder bleiben <b style={{ color: C.text }}>nur auf diesem Gerät</b> und werden nirgends hochgeladen.
+        Bei mehreren Bildern gilt die Reihenfolge der Dateinamen: {SUIT_NAMES[deck].join(", ")}, je von 6 bis Ass. Einzelne Karte: Feld antippen.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <button onClick={() => multiRef.current.click()} style={btn(true)}>Bilder auswählen…</button>
+        {count > 0 && <button onClick={removeAll} style={btn(false)}>Alle löschen</button>}
+      </div>
+      <input ref={multiRef} type="file" accept="image/*" multiple onChange={onMulti} style={{ display: "none" }} />
+      <input ref={singleRef} type="file" accept="image/*" onChange={onSingle} style={{ display: "none" }} />
+      {busy && <div style={{ fontSize: 13, color: C.gold, marginBottom: 10 }}>{busy}</div>}
+      <div style={{ fontSize: 13, marginBottom: 8 }}>{count} von 36 Karten mit eigenem Bild</div>
+      {[0, 1, 2, 3].map((s) => (
+        <div key={s} style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginBottom: 4 }}><SuitIcon s={s} deck={deck} size={16} />{SUIT_NAMES[deck][s]}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 3 }}>
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((r) => {
+              const id = s * 9 + r, im = imgs[key(id)];
+              return (
+                <div key={r} onClick={() => { slotRef.current = id; singleRef.current.click(); }}
+                  onContextMenu={(e) => { e.preventDefault(); if (im && window.confirm("Bild dieser Karte löschen?")) removeOne(id); }}
+                  style={{ aspectRatio: "2 / 3", borderRadius: 4, overflow: "hidden", cursor: "pointer", background: im ? "#fff" : "rgba(255,255,255,0.08)", border: "1px solid " + C.line, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: C.dim }}>
+                  {im ? <img src={im} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : RANK_LABEL[deck][r]}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div style={{ borderTop: "1px solid " + C.line, paddingTop: 12, marginTop: 6, display: "flex", flexDirection: "column", gap: 8 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+          <input type="checkbox" checked={settings.customImgs} onChange={() => toggle("customImgs")} /> Eigene Bilder im Spiel verwenden
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+          <input type="checkbox" checked={settings.imgIndex} onChange={() => toggle("imgIndex")} /> Kleine Kartenbezeichnung oben links einblenden
+        </label>
+        <div style={{ fontSize: 12, color: C.dim }}>Karten ohne eigenes Bild werden weiterhin gezeichnet. Ein Bild ersetzen: Feld antippen. Löschen: Feld lange drücken.</div>
+      </div>
+    </Modal>
   );
 }
 
@@ -391,11 +547,17 @@ function JassApp() {
   const [toast, setToast] = useState(null);
   const [selected, setSelected] = useState(null);
   const toastTimer = useRef(null);
+  const [imgs, setImgs] = useState({});
+  const reloadImgs = () => imgAll().then(setImgs).catch((e) => console.error("Kartenbilder:", e));
+  useEffect(() => { reloadImgs(); }, []);
   const vw = useWidth();
   const deck = settings.deck;
   const sp = SPEEDS[settings.speed] || SPEEDS.normal;
 
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
+  const imgCtx = { on: settings.customImgs, index: settings.imgIndex, map: imgs };
+  const wrap = (el) => <CardImgCtx.Provider value={imgCtx}>{el}</CardImgCtx.Provider>;
+  const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal(null)} />;
   useEffect(() => { save("game", game); }, [game]);
   useEffect(() => { save("stats", stats); }, [stats]);
 
@@ -473,7 +635,7 @@ function JassApp() {
   // ── Startbildschirm ──
   if (!game || home) {
     const canResume = game && !game.over;
-    return (
+    return wrap(
       <div style={{ minHeight: "100%", background: "radial-gradient(circle at 50% 30%, " + C.felt + ", " + C.felt2 + ")", color: C.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box", gap: 14 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
           {[3, 1, 2, 0].map((s, i) => (
@@ -485,12 +647,14 @@ function JassApp() {
         {canResume && <button onClick={() => setHome(false)} style={{ ...btn(true), width: 240, marginTop: 10 }}>Weiterspielen ({game.scores[0]} : {game.scores[1]})</button>}
         <button onClick={canResume ? askNew : startNew} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
         <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Einstellungen</button>
+        <button onClick={() => setModal("images")} style={{ ...btn(false), width: 240 }}>Eigene Kartenbilder</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
         <div style={{ color: C.dim, fontSize: 12, marginTop: 10 }}>v{APP_VERSION}</div>
         {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
         {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
+        {imgModal}
       </div>
     );
   }
@@ -542,7 +706,7 @@ function JassApp() {
     );
   };
 
-  return (
+  return wrap(
     <div style={{ height: "100%", background: "radial-gradient(ellipse at 50% 40%, " + C.felt + ", " + C.felt2 + ")", color: C.text, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       {/* Kopfzeile */}
       <div style={{ paddingTop: "env(safe-area-inset-top, 0px)", background: "rgba(0,0,0,0.25)", borderBottom: "1px solid " + C.line }}>
@@ -619,6 +783,7 @@ function JassApp() {
           ["Jasstafel", () => setModal("tafel")],
           r.lastTrick ? ["Letzter Stich", () => setModal("last")] : null,
           ["Einstellungen", () => setModal("settings")],
+          ["Eigene Kartenbilder", () => setModal("images")],
           ["Regeln", () => setModal("rules")],
           ["Info & Statistik", () => setModal("info")],
           ["Zum Startbildschirm", () => setHome(true)],
@@ -630,6 +795,7 @@ function JassApp() {
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
+      {imgModal}
     </div>
   );
 }
