@@ -1459,9 +1459,11 @@ function JassApp() {
       <div style={{ display: "flex", flexDirection: "column", alignItems: align || "center", gap: 3, marginTop: 4 }}>
         {ws.map((w, i) => (
           <div key={i} title={describeWeis(w, deck)} style={{ fontSize: 11, padding: "1px 6px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: "1px solid rgba(244,196,48,0.6)", color: C.text, whiteSpace: "nowrap", lineHeight: 1.4 }}>
+            {/* Kurzform: Punkte, Farbe, Bezugskarte – bei Undenufe die tiefste
+                (20 Schellen 10 = 10, U, O), sonst die höchste (20 Schellen 9 = 7, 8, 9) */}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-              {w.type === "four" ? "4×" + RANK_LABEL[deck][w.r] : <>{w.len}-Bl.<SuitIcon s={w.s} deck={deck} size={12} />{RANK_LABEL[deck][w.hi]}</>}
-              <b style={{ color: C.gold, marginLeft: 3 }}>{w.pts}</b>
+              <b style={{ color: C.gold }}>{w.pts}</b>
+              {w.type === "four" ? "4×" + RANK_LABEL[deck][w.r] : <><SuitIcon s={w.s} deck={deck} size={12} />{RANK_LABEL[deck][r.trump === E.UNDE ? w.lo : w.hi]}</>}
             </span>
           </div>
         ))}
