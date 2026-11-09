@@ -4,9 +4,23 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 const CHANGELOG = [
+  {
+    version: "1.1.0",
+    changes: [
+      "Offene Karten (Lernmodus): die Karten der Mitspieler liegen aufgedeckt bei ihrem Platz – nur für dich sichtbar",
+      "Stärkere Computer-Spieler (Stufe «Stark»): Simulation vieler Kartenverteilungen, Partnerregeln (Verwerfen, Schmieren, Bock-Untergabe), gezeigte Weis werden berücksichtigt",
+      "Bedanken per Knopf; die Gegner bedanken sich automatisch",
+      "Jasstafel als Schiefertafel mit Kreide: Z mit 100er-/20er-Fünferbündeln, 50er über Kreuz, V bei 500 in einer Runde, Einer als Zahl (mit Minus); Rückseite mit Strichen (Match, Sieg, Berg)",
+      "Eigene Kartenbilder und Rückseite (Fotos, Gruppenfotos, PDF) – nur auf dem Gerät gespeichert, Tauschen zum Korrigieren der Reihenfolge",
+      "Backup aller Daten als eine Datei zum Übertragen auf ein anderes Gerät",
+      "Spielernamen editierbar; Weis, aktueller Stichhalter (grün) und Ansage (★ primär, ☆ geschoben) am Tisch sichtbar",
+      "Karte spielen auch per Wischen; Ausgrauen nicht spielbarer Karten abwählbar; Rundenabrechnung schliessbar",
+      "Neues Design: Schiefertafel-Startseite, abgegriffener Filzteppich, Stich-Stapel bei den Spielern",
+    ],
+  },
   {
     version: "1.0.0",
     changes: [
@@ -31,7 +45,7 @@ function save(key, val) {
 }
 
 const DEFAULT_NAMES = ["Du", "Rechts", "Partner", "Links"];
-const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark", dimIllegal: true };
+const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark", dimIllegal: true, openCards: false };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
@@ -883,6 +897,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
       {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"]]} />)}
       {row("Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes iPhone übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben, nicht veröffentlichen.")}
       {row("Eigene Kartenbilder", <button onClick={onImages} style={{ ...btn(false), display: "inline-flex", alignItems: "center", gap: 8 }}>🃏 Eigene Kartenbilder…</button>, "Fotos/Scans deiner eigenen Karten und Rückseite – nur auf diesem Gerät gespeichert.")}
+      {row("Offene Karten", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Verdeckt"], [true, "Offen (Lernmodus)"]]} />,
+        settings.openCards ? "Die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen." : null)}
       {row("Nicht spielbare Karten", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal zeigen"]]} />,
         settings.dimIllegal === false ? "Alle Karten sehen gleich aus; eine nicht erlaubte Karte lässt sich trotzdem nicht spielen." : null)}
       {row("Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "Antippen + bestätigen"], ["tap", "Ein Tipp"], ["swipe", "Wischen"]]} />,
@@ -908,6 +924,8 @@ function RulesModal({ onClose, deck }) {
       {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Under 200, vier Nell 150, vier Ass/König/Ober/Zehner 100. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
+      {h("Offene Karten (Lernmodus)")}
+      {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
@@ -1498,6 +1516,20 @@ function JassApp() {
     );
   };
 
+  // Lernmodus: Hand eines Mitspielers offen und klein
+  const OpenHand = ({ cards }) => {
+    const mw = 26, st = 9;
+    return (
+      <div style={{ position: "relative", width: mw + st * (cards.length - 1), height: Math.round(mw * 1.5), marginTop: 3 }}>
+        {cards.map((c, i) => (
+          <div key={c} style={{ position: "absolute", left: i * st, top: 0, zIndex: i }}>
+            <Card id={c} deck={deck} w={mw} trump={r.trump != null && E.isTrump(c, r.trump)} />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const Seat = ({ p, style }) => {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
@@ -1509,6 +1541,7 @@ function JassApp() {
           {NAMES[p]}{isDecider ? (r.pushed ? " ☆" : " ★") : ""}
         </div>
         <div style={{ fontSize: 11, color: C.dim }}>{r.hands[p].length} Karten</div>
+        {settings.openCards && r.hands[p].length > 0 && <OpenHand cards={r.hands[p]} />}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>

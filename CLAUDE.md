@@ -23,6 +23,8 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   in einer Runde), 50er je zwei über Kreuz, 20er in Fünferbündeln; nur Einer (als Zahl) werden angepasst
   (ab 11 → 20er-Strich + Minus-Einer, z.B. 9 + 8 = 20er und −3). Rückseite Striche über alle Partien (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
+- Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
+  Computer erhalten diese Information nicht.
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB
   `jass-bilder`, niemals ins Repo (urheberrechtlich geschützt, Repo ist öffentlich).
@@ -32,8 +34,6 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
 - Deployment: GitHub Pages direkt vom `main`-Branch.
 
 ## Versionierung
-- **Zurzeit keine Versionen:** bis eine gute Grundfunktionalität steht, kein Bump und keine
-  Nachfrage zur Stufe (Wunsch von claudemn61). Danach gilt wieder:
 - Patch = Bugfix, Minor = Feature, Major = Architektur. Vor jeder Code-Änderung nach der Stufe fragen
   (ausser "V-"/"keine Version").
 - Jede Stufe erhöht `APP_VERSION` und bekommt einen `CHANGELOG`-Eintrag in `jass.jsx`.
