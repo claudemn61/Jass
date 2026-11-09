@@ -30,7 +30,7 @@ function save(key, val) {
   try { if (val == null) localStorage.removeItem("jass:" + key); else localStorage.setItem("jass:" + key, JSON.stringify(val)); } catch (e) {}
 }
 
-const DEFAULT_SETTINGS = { deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true };
+const DEFAULT_SETTINGS = { deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe" };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
@@ -239,45 +239,81 @@ async function imgWrite(fn) {
     tx.onerror = () => rej(tx.error);
   });
 }
-// Bild auf max. 300×450 verkleinern (spart Speicher, reicht für die Anzeige)
-function shrinkImage(file) {
+function loadImage(file) {
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file);
     const im = new Image();
-    im.onload = () => {
-      const f = Math.min(1, 300 / im.naturalWidth, 450 / im.naturalHeight);
-      const cv = document.createElement("canvas");
-      cv.width = Math.round(im.naturalWidth * f); cv.height = Math.round(im.naturalHeight * f);
-      cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
-      URL.revokeObjectURL(url);
-      res(cv.toDataURL("image/jpeg", 0.85));
-    };
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
     im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Bild nicht lesbar: " + file.name)); };
     im.src = url;
   });
+}
+// Ausschnitt (sx, sy, sw, sh) auf max. 300×450 verkleinern (spart Speicher, reicht für die Anzeige)
+function cropToDataUrl(im, sx, sy, sw, sh) {
+  const f = Math.min(1, 300 / sw, 450 / sh);
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(sw * f); cv.height = Math.round(sh * f);
+  cv.getContext("2d").drawImage(im, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  return cv.toDataURL("image/jpeg", 0.85);
+}
+async function shrinkImage(file) {
+  const im = await loadImage(file);
+  return cropToDataUrl(im, 0, 0, im.naturalWidth, im.naturalHeight);
+}
+// Gruppenfoto mit n Karten nebeneinander in n gleich breite Teile schneiden
+async function splitImage(file, n) {
+  const im = await loadImage(file);
+  const w = im.naturalWidth / n, h = im.naturalHeight;
+  return Array.from({ length: n }, (_, i) => cropToDataUrl(im, Math.round(i * w), 0, Math.round(w), h));
 }
 
 function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose }) {
   const [busy, setBusy] = useState(null);
   const multiRef = useRef(null);
   const singleRef = useRef(null);
+  const groupRef = useRef(null);
+  const groupsRef = useRef(null);
   const slotRef = useRef(null);
-  const order = [0, 1, 2, 3].flatMap((s) => [0, 1, 2, 3, 4, 5, 6, 7, 8].map((r) => s * 9 + r));
+  const groupRankRef = useRef(null);
+  const RANKS = [0, 1, 2, 3, 4, 5, 6, 7, 8], SUITS = [0, 1, 2, 3];
+  const byRank = settings.imgOrder === "rang";
+  const order = byRank ? RANKS.flatMap((r) => SUITS.map((s) => s * 9 + r)) : SUITS.flatMap((s) => RANKS.map((r) => s * 9 + r));
+  const byName = (files) => files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const key = (id) => deck + ":" + id;
   const count = order.filter((id) => imgs[key(id)]).length;
 
+  // pairs: [kartenId, File] oder [kartenId, fertige Data-URL]
   const store = async (pairs) => {
     setBusy("Speichere " + pairs.length + " Bild(er)…");
     try {
       const data = [];
-      for (const [id, file] of pairs) data.push([key(id), await shrinkImage(file)]);
+      for (const [id, src] of pairs) data.push([key(id), typeof src === "string" ? src : await shrinkImage(src)]);
       await imgWrite((st) => data.forEach(([k, v]) => st.put(v, k)));
       await reload();
       setBusy(null);
     } catch (e) { setBusy("Fehler: " + (e.message || e)); }
   };
+  // Gruppenfotos: je Foto ein Rang, 4 Karten nebeneinander (Farben in Standardreihenfolge)
+  const storeGroups = async (rankFiles) => {
+    setBusy("Schneide " + rankFiles.length + " Gruppenfoto(s)…");
+    try {
+      const pairs = [];
+      for (const [r, file] of rankFiles) (await splitImage(file, 4)).forEach((url, s) => pairs.push([s * 9 + r, url]));
+      await store(pairs);
+    } catch (e) { setBusy("Fehler: " + (e.message || e)); }
+  };
+  const onGroups = (ev) => {
+    const files = byName(Array.from(ev.target.files || []));
+    ev.target.value = "";
+    if (files.length) storeGroups(files.slice(0, 9).map((f, i) => [i, f]));
+  };
+  const onGroup = (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (f && groupRankRef.current != null) storeGroups([[groupRankRef.current, f]]);
+  };
   const onMulti = (ev) => {
-    const files = Array.from(ev.target.files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const files = byName(Array.from(ev.target.files || []));
     ev.target.value = "";
     if (!files.length) return;
     const start = Math.max(0, order.findIndex((id) => !imgs[key(id)]));
@@ -301,14 +337,43 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
     <Modal title="Eigene Kartenbilder" onClose={onClose} wide>
       <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 12 }}>
         Fotos oder Scans deiner eigenen Karten ({deck === "ch" ? "Deutschschweizer" : "französische"} Karten). Die Bilder bleiben <b style={{ color: C.text }}>nur auf diesem Gerät</b> und werden nirgends hochgeladen.
-        Bei mehreren Bildern gilt die Reihenfolge der Dateinamen: {SUIT_NAMES[deck].join(", ")}, je von 6 bis Ass. Einzelne Karte: Feld antippen.
+        Bei mehreren Bildern gilt die Reihenfolge der Dateinamen (bei Fotos = Aufnahme-Reihenfolge). Einzelne Karte: Feld antippen.
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+
+      <div style={{ fontWeight: 800, color: C.gold, fontSize: 14, marginBottom: 6 }}>Einzelfotos (eine Karte pro Bild)</div>
+      <div style={{ marginBottom: 8 }}>
+        <Choice value={settings.imgOrder || "farbe"} onChange={(v) => setSettings({ ...settings, imgOrder: v })} options={[["farbe", "Nach Farbe"], ["rang", "Nach Rang"]]} />
+      </div>
+      <div style={{ fontSize: 12, color: C.dim, marginBottom: 8 }}>
+        {byRank
+          ? "Reihenfolge: alle 6er, alle 7er … alle Asse – jeweils " + SUIT_NAMES[deck].join(", ") + "."
+          : "Reihenfolge: " + SUIT_NAMES[deck].join(", ") + " – jeweils von 6 bis Ass."}
+        {" "}Beginnt bei der ersten Karte ohne Bild.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         <button onClick={() => multiRef.current.click()} style={btn(true)}>Bilder auswählen…</button>
         {count > 0 && <button onClick={removeAll} style={btn(false)}>Alle löschen</button>}
       </div>
+
+      <div style={{ fontWeight: 800, color: C.gold, fontSize: 14, marginBottom: 6 }}>Gruppenfotos (4 Karten nebeneinander)</div>
+      <div style={{ fontSize: 12, color: C.dim, marginBottom: 8 }}>
+        Pro Foto alle vier Karten eines Rangs, dicht und gerade nebeneinander, von links: {SUIT_NAMES[deck].join(", ")}. Foto knapp auf die Karten zuschneiden – es wird in 4 gleich breite Teile geschnitten.
+        Mehrere Fotos: Reihenfolge 6, 7, 8, 9, 10, U, O, K, A.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <button onClick={() => groupsRef.current.click()} style={btn(true)}>Gruppenfotos auswählen…</button>
+      </div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+        <span style={{ fontSize: 12, color: C.dim, marginRight: 4 }}>Einzelner Rang:</span>
+        {RANKS.map((r) => (
+          <button key={r} onClick={() => { groupRankRef.current = r; groupRef.current.click(); }} style={{ ...btn(false), padding: "6px 9px", fontSize: 13 }}>{RANK_LABEL[deck][r]}</button>
+        ))}
+      </div>
+
       <input ref={multiRef} type="file" accept="image/*" multiple onChange={onMulti} style={{ display: "none" }} />
       <input ref={singleRef} type="file" accept="image/*" onChange={onSingle} style={{ display: "none" }} />
+      <input ref={groupsRef} type="file" accept="image/*" multiple onChange={onGroups} style={{ display: "none" }} />
+      <input ref={groupRef} type="file" accept="image/*" onChange={onGroup} style={{ display: "none" }} />
       {busy && <div style={{ fontSize: 13, color: C.gold, marginBottom: 10 }}>{busy}</div>}
       <div style={{ fontSize: 13, marginBottom: 8 }}>{count} von 36 Karten mit eigenem Bild</div>
       {[0, 1, 2, 3].map((s) => (
