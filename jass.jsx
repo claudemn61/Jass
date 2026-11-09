@@ -1442,6 +1442,23 @@ function JassApp() {
   (r.tricksLog || []).forEach((tr) => { if (tr.length === 4) wonBy[tr[E.trickWinnerIdx(tr, r.trump)].p]++; });
   const pileW = Math.max(16, Math.round(cw * 0.32));
 
+  // Weis der Runde beim Spieler: nach dem ersten Stich zeigt das Team mit dem
+  // höchsten Weis seine Weise (wie am echten Tisch)
+  const weisOf = (p) => (r.trickNo >= 1 && r.weis && r.weis.winnerTeam === E.team(p) ? r.weis.byPlayer[p] : []);
+  const WeisChips = ({ p, align }) => {
+    const ws = weisOf(p);
+    if (!ws.length) return null;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: align || "center", gap: 3, marginTop: 4 }}>
+        {ws.map((w, i) => (
+          <div key={i} style={{ fontSize: 11, padding: "2px 7px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: "1px solid rgba(244,196,48,0.6)", color: C.text, maxWidth: 140, textAlign: "center", lineHeight: 1.3 }}>
+            {describeWeis(w, deck)} <b style={{ color: C.gold }}>{w.pts}</b>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const Seat = ({ p, style }) => {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
@@ -1451,6 +1468,7 @@ function JassApp() {
           {NAMES[p]}{isDecider ? " ★" : ""}
         </div>
         <div style={{ fontSize: 11, color: C.dim }}>{r.hands[p].length} Karten</div>
+        <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>
     );
@@ -1485,6 +1503,7 @@ function JassApp() {
           <TafelBadge onClick={() => setModal("tafel")} />
         </div>
         {wonBy[0] > 0 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)" }}><TrickPile n={wonBy[0]} w={pileW} /></div>}
+        {weisOf(0).length > 0 && <div style={{ position: "absolute", bottom: wonBy[0] > 0 ? 10 + pileW + 22 : 10, left: "50%", transform: "translateX(-50%)" }}><WeisChips p={0} /></div>}
         <Seat p={3} style={{ top: "42%", left: 8 }} />
         <Seat p={1} style={{ top: "42%", right: 8 }} />
         <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0 }}>
