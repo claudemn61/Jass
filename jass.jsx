@@ -414,6 +414,20 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
     const ids = order.slice(start).concat(order.slice(0, start));
     store(files.slice(0, 36).map((f, i) => [ids[i], f]));
   };
+  // Rückseite: ein Bild (bei PDF die erste Seite), Schlüssel "back" für alle Kartensätze
+  const backRef = useRef(null);
+  const onBack = async (ev) => {
+    const files = await pick(ev);
+    if (!files.length) return;
+    setBusy("Speichere Rückseite…");
+    try {
+      const url = await shrinkImage(files[0]);
+      await imgWrite((st) => st.put(url, "back"));
+      await reload();
+      setBusy(null);
+    } catch (e) { setBusy("Fehler: " + (e.message || e)); }
+  };
+  const removeBack = async () => { await imgWrite((st) => st.delete("back")); await reload(); };
   const onSingle = async (ev) => {
     const id = slotRef.current;
     const files = await pick(ev);
@@ -491,6 +505,16 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
       <input ref={singleRef} type="file" accept="image/*,application/pdf" onChange={onSingle} style={{ display: "none" }} />
       <input ref={groupsRef} type="file" accept="image/*,application/pdf" multiple onChange={onGroups} style={{ display: "none" }} />
       <input ref={groupRef} type="file" accept="image/*,application/pdf" onChange={onGroup} style={{ display: "none" }} />
+      <input ref={backRef} type="file" accept="image/*,application/pdf" onChange={onBack} style={{ display: "none" }} />
+
+      <div style={{ fontWeight: 800, color: C.gold, fontSize: 14, marginBottom: 6 }}>Rückseite</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div onClick={() => backRef.current.click()} style={{ width: 44, aspectRatio: "2 / 3", borderRadius: 4, overflow: "hidden", cursor: "pointer", background: imgs["back"] ? "#fff" : "rgba(255,255,255,0.08)", border: "1px solid " + C.line, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: C.dim }}>
+          {imgs["back"] ? <img src={imgs["back"]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "leer"}
+        </div>
+        <button onClick={() => backRef.current.click()} style={{ ...btn(false), padding: "8px 12px", fontSize: 14 }}>{imgs["back"] ? "Ersetzen…" : "Bild/PDF wählen…"}</button>
+        {imgs["back"] && <button onClick={removeBack} style={{ ...btn(false), padding: "8px 12px", fontSize: 14 }}>Löschen</button>}
+      </div>
       {busy && <div style={{ fontSize: 13, color: C.gold, marginBottom: 10 }}>{busy}</div>}
       <div style={{ fontSize: 13, marginBottom: 8 }}>{count} von 36 Karten mit eigenem Bild</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -544,6 +568,15 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
 // Kartenrücken (eigenes, schlichtes Muster)
 function CardBack({ w, rot }) {
   const h = Math.round(w * 1.5);
+  const imgCtx = useContext(CardImgCtx);
+  const img = imgCtx.on && imgCtx.map["back"];
+  if (img) {
+    return (
+      <div style={{ width: w, height: h, borderRadius: w * 0.12, overflow: "hidden", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.6)", transform: rot ? "rotate(" + rot + "deg)" : "none" }}>
+        <img src={img} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </div>
+    );
+  }
   return (
     <div style={{ width: w, height: h, borderRadius: w * 0.12, background: "#fbfaf4", padding: w * 0.07, boxSizing: "border-box", boxShadow: "0 1px 3px rgba(0,0,0,0.6)", transform: rot ? "rotate(" + rot + "deg)" : "none" }}>
       <div style={{ width: "100%", height: "100%", borderRadius: w * 0.07, background: "repeating-linear-gradient(45deg, #8b1e2b 0 3px, #a8323f 3px 6px), #8b1e2b", backgroundBlendMode: "multiply" }} />
