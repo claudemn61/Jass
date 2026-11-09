@@ -81,8 +81,9 @@ function doPlay(g, p, c) {
   const full = trick.length === 4;
   return { ...g, round: { ...r, hands, trick, stoeckDone, phase: full ? "trickDone" : "play", turn: full ? null : (p + 1) % 4 } };
 }
-// Berg: Punktgrenze, deren erstes Erreichen einen Strich gibt (bei Ziel 2500 = 1500)
-const bergOf = (target) => Math.round((target * 0.6) / 10) * 10;
+// Berg: Punktgrenze, deren erstes Erreichen einen Strich gibt (bei Ziel 2500 = 1500).
+// Bei Ziel 1000 (oder weniger) wird ohne Berg gespielt → null.
+const bergOf = (target) => (target <= 1000 ? null : Math.round((target * 0.6) / 10) * 10);
 
 // Bisher gutgeschriebene Punkte der laufenden Runde (ohne Multiplikator in
 // den Teilen, total mit): gesammelte Stiche, Weis ab dem 1. Stich, Stöck sobald gespielt
@@ -100,8 +101,8 @@ function finishRound(g, rUpd, res, winner, extra) {
   const r = { ...g.round, ...rUpd };
   const scores = [0, 1].map((i) => g.scores[i] + res.total[i]);
   let berg = g.berg != null ? g.berg : null;
-  if (berg == null) {
-    const lim = bergOf(g.target);
+  const lim = bergOf(g.target);
+  if (berg == null && lim != null) {
     const hit = [0, 1].filter((i) => scores[i] >= lim);
     if (hit.length) berg = hit.length === 1 ? hit[0] : (scores[0] >= scores[1] ? 0 : 1);
   }
@@ -540,6 +541,110 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
   );
 }
 
+// Kartenrücken (eigenes, schlichtes Muster)
+function CardBack({ w, rot }) {
+  const h = Math.round(w * 1.5);
+  return (
+    <div style={{ width: w, height: h, borderRadius: w * 0.12, background: "#fbfaf4", padding: w * 0.07, boxSizing: "border-box", boxShadow: "0 1px 3px rgba(0,0,0,0.6)", transform: rot ? "rotate(" + rot + "deg)" : "none" }}>
+      <div style={{ width: "100%", height: "100%", borderRadius: w * 0.07, background: "repeating-linear-gradient(45deg, #8b1e2b 0 3px, #a8323f 3px 6px), #8b1e2b", backgroundBlendMode: "multiply" }} />
+    </div>
+  );
+}
+
+// Gewonnene Stiche eines Spielers: umgedrehte, versetzt gestapelte Kärtchen
+function TrickPile({ n, w }) {
+  if (!n) return null;
+  return (
+    <div style={{ position: "relative", width: w * 1.5 + (Math.min(n, 9) - 1) * 3, height: w + (Math.min(n, 9) - 1) * 2 }}>
+      {Array.from({ length: Math.min(n, 9) }, (_, i) => (
+        <div key={i} style={{ position: "absolute", left: i * 3, top: i * 2, width: w * 1.5, height: w }}>
+          <div style={{ position: "absolute", left: w * 0.25, top: -w * 0.25, transform: "rotate(" + (90 + ((i * 37) % 9) - 4) + "deg)" }}>
+            <CardBack w={w} />
+          </div>
+        </div>
+      ))}
+      <div style={{ position: "absolute", right: -16, bottom: -4, fontSize: 11, fontWeight: 800, color: C.text, background: "rgba(0,0,0,0.55)", borderRadius: 8, padding: "0 5px" }}>{n}</div>
+    </div>
+  );
+}
+
+// Kleine Schiefertafel als Knopf zur Jasstafel
+function TafelBadge({ onClick, scores }) {
+  return (
+    <div onClick={onClick} style={{ cursor: "pointer", padding: 4, borderRadius: 5, background: "linear-gradient(135deg, #a8743f, #6b3f1b)", boxShadow: "0 3px 8px rgba(0,0,0,0.5)" }}>
+      <div style={{ background: "radial-gradient(circle at 40% 35%, #3c4744, #232b29)", borderRadius: 2, padding: "4px 8px 3px", fontFamily: CHALK_FONT, color: CHALK, textAlign: "center", lineHeight: 1.15 }}>
+        <svg viewBox="0 0 40 18" width="34" height="15" style={{ display: "block", margin: "0 auto" }}>
+          <path d="M3 3 H37 L3 15 H37" stroke={CHALK} strokeWidth="1.6" fill="none" strokeLinecap="round" />
+          <path d="M8 1 V5 M11 1 V5 M14 1 V5 M8 13 V17 M11 13 V17" stroke={CHALK} strokeWidth="1.1" />
+        </svg>
+        <div style={{ fontSize: 11 }}>Jasstafel</div>
+      </div>
+    </div>
+  );
+}
+
+// Hintergrund Startbildschirm: alte, verwitterte Schiefer-Jasstafel
+function StartSlate() {
+  const rnd = (i) => { const x = Math.sin(i * 91.17) * 43758.5453; return x - Math.floor(x); };
+  const kratzer = Array.from({ length: 38 }, (_, i) => {
+    const x = 40 + rnd(i) * 320, y = 40 + rnd(i + 50) * 720, l = 8 + rnd(i + 99) * 40, a = (rnd(i + 7) - 0.5) * 2.4;
+    return <path key={i} d={"M" + x + " " + y + " l" + l * Math.cos(a) + " " + l * Math.sin(a)} stroke="rgba(255,255,255,0.10)" strokeWidth={0.6 + rnd(i + 3)} />;
+  });
+  const flecken = Array.from({ length: 9 }, (_, i) => (
+    <ellipse key={i} cx={40 + rnd(i + 200) * 320} cy={60 + rnd(i + 300) * 680} rx={30 + rnd(i + 400) * 90} ry={10 + rnd(i + 500) * 30} transform={"rotate(" + (rnd(i + 600) * 40 - 20) + ")"} fill={"rgba(255,255,255," + (0.025 + rnd(i + 700) * 0.04) + ")"} />
+  ));
+  // Holzschäden am Rahmen
+  const macken = Array.from({ length: 14 }, (_, i) => {
+    const side = i % 4, t = rnd(i + 800);
+    const x = side === 0 ? 4 + rnd(i) * 14 : side === 1 ? 382 + rnd(i) * 14 : 20 + t * 360;
+    const y = side < 2 ? 20 + t * 760 : side === 2 ? 4 + rnd(i) * 14 : 782 + rnd(i) * 14;
+    return <ellipse key={i} cx={x} cy={y} rx={2 + rnd(i + 900) * 5} ry={1 + rnd(i + 950) * 3} fill="rgba(40,20,5,0.55)" />;
+  });
+  // Alte, weggewischte Z und Zahlen
+  const geist = (oy, k) => (
+    <g key={k} stroke="rgba(235,235,225,0.07)" strokeWidth="7" fill="none" strokeLinecap="round">
+      <path d={"M60 " + (oy + 40) + " H330 L60 " + (oy + 230) + " H330"} />
+      <path d={"M80 " + (oy + 28) + " v24 M92 " + (oy + 28) + " v24 M104 " + (oy + 28) + " v24 M116 " + (oy + 28) + " v24 M76 " + (oy + 50) + " L122 " + (oy + 30)} strokeWidth="3" />
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 0 }}>
+      <defs>
+        <linearGradient id="holz" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#8a5a2b" /><stop offset="30%" stopColor="#5e3a17" /><stop offset="55%" stopColor="#7d5025" /><stop offset="80%" stopColor="#4f3013" /><stop offset="100%" stopColor="#6e451f" />
+        </linearGradient>
+        <filter id="holzmaser">
+          <feTurbulence type="fractalNoise" baseFrequency="0.02 0.4" numOctaves="2" seed="4" />
+          <feColorMatrix values="0 0 0 0 0.15  0 0 0 0 0.08  0 0 0 0 0.02  0 0 0 0.35 0" />
+        </filter>
+        <radialGradient id="schieferAlt" cx="45%" cy="38%" r="85%">
+          <stop offset="0%" stopColor="#3e4845" /><stop offset="70%" stopColor="#262e2c" /><stop offset="100%" stopColor="#1b2120" />
+        </radialGradient>
+        <filter id="schieferKorn">
+          <feTurbulence type="fractalNoise" baseFrequency="0.015 0.06" numOctaves="4" seed="11" />
+          <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.09 0" />
+        </filter>
+        <filter id="verwittert">
+          <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="2" seed="2" />
+          <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0" />
+        </filter>
+      </defs>
+      <rect width="400" height="800" fill="url(#holz)" />
+      <rect width="400" height="800" filter="url(#holzmaser)" />
+      {macken}
+      <rect x="20" y="20" width="360" height="760" rx="4" fill="url(#schieferAlt)" />
+      <rect x="20" y="20" width="360" height="760" rx="4" filter="url(#schieferKorn)" />
+      <rect x="20" y="20" width="360" height="760" rx="4" filter="url(#verwittert)" />
+      {flecken}
+      {geist(70, 1)}
+      {geist(480, 2)}
+      {kratzer}
+      <rect x="20" y="20" width="360" height="760" rx="4" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="6" />
+      <rect x="17" y="17" width="366" height="766" rx="5" fill="none" stroke="rgba(255,220,170,0.12)" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 function useWidth() {
   const [w, setW] = useState(window.innerWidth);
   useEffect(() => { const f = () => setW(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -618,7 +723,7 @@ function RulesModal({ onClose, deck }) {
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z – 100er als Striche oben, 50er auf der Diagonale, 20er unten, der Rest als Zahl. Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich.")}
+      {p("Vorderseite: pro Team ein Z – 100er als Striche oben, 50er auf der Diagonale, 20er unten, der Rest als Zahl. Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -746,7 +851,7 @@ function TafelVorderseite({ game }) {
       {half(0, 4)}
       <ChalkLine x1={14} y1={250} x2={W - 14} y2={250} seed={77} w={1.6} />
       {half(1, 252)}
-      <ChalkText x={W - 12} y={H - 10} size={11} anchor="end">Ziel {game.target} · Berg {bergOf(game.target)}</ChalkText>
+      <ChalkText x={W - 12} y={H - 10} size={11} anchor="end">Ziel {game.target}{bergOf(game.target) ? " · Berg " + bergOf(game.target) : " · ohne Berg"}</ChalkText>
     </Slate>
   );
 }
@@ -791,7 +896,7 @@ function TafelModal({ game, deck, striche, onResetStriche, onClose }) {
         <div>
           <TafelRueckseite striche={striche} />
           <div style={{ fontSize: 12, color: C.dim, margin: "10px 0" }}>
-            Über alle Partien: jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg ({bergOf(game.target)} Punkte zuerst erreicht) 1 Strich.
+            Über alle Partien: jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg 1 Strich ({bergOf(game.target) ? bergOf(game.target) + " Punkte zuerst erreicht" : "bei Ziel " + game.target + " ohne Berg"}).
           </div>
           <button onClick={() => { if (window.confirm("Rückseite der Tafel abwischen (alle Striche löschen)?")) onResetStriche(); }} style={btn(false)}>Tafel abwischen</button>
         </div>
@@ -1039,21 +1144,24 @@ function JassApp() {
   if (!game || home) {
     const canResume = game && !game.over;
     return wrap(
-      <div style={{ minHeight: "100%", background: "radial-gradient(circle at 50% 30%, " + C.felt + ", " + C.felt2 + ")", color: C.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box", gap: 14 }}>
+      <div style={{ minHeight: "100%", background: "#1b2120", color: C.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box", gap: 14, position: "relative" }}>
+        <StartSlate />
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
           {[3, 1, 2, 0].map((s, i) => (
             <div key={s} style={{ transform: "rotate(" + (i - 1.5) * 8 + "deg)" }}><Card id={s * 9 + 8} deck={deck} w={58} /></div>
           ))}
         </div>
-        <div style={{ fontSize: 34, fontWeight: 900, letterSpacing: 1 }}>Schieber</div>
-        <div style={{ color: C.dim, fontSize: 14, marginTop: -8 }}>Jassen gegen den Computer</div>
+        <div style={{ fontSize: 40, letterSpacing: 1, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.25)" }}>Schieber</div>
+        <div style={{ color: "rgba(240,240,232,0.7)", fontSize: 15, marginTop: -10, fontFamily: CHALK_FONT }}>Jassen gegen den Computer</div>
         {canResume && <button onClick={() => setHome(false)} style={{ ...btn(true), width: 240, marginTop: 10 }}>Weiterspielen ({game.scores[0]} : {game.scores[1]})</button>}
         <button onClick={canResume ? askNew : startNew} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
         <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Einstellungen</button>
         <button onClick={() => setModal("images")} style={{ ...btn(false), width: 240 }}>Eigene Kartenbilder</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
-        <div style={{ color: C.dim, fontSize: 12, marginTop: 10 }}>v{APP_VERSION}</div>
+        <div style={{ color: "rgba(240,240,232,0.55)", fontSize: 12, marginTop: 10, fontFamily: CHALK_FONT }}>v{APP_VERSION}</div>
+        </div>
         {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
         {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
@@ -1096,6 +1204,11 @@ function JassApp() {
     return "";
   })();
 
+  // gewonnene Stiche je Spieler
+  const wonBy = [0, 0, 0, 0];
+  (r.tricksLog || []).forEach((tr) => { if (tr.length === 4) wonBy[tr[E.trickWinnerIdx(tr, r.trump)].p]++; });
+  const pileW = Math.max(16, Math.round(cw * 0.32));
+
   const Seat = ({ p, style }) => {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
@@ -1105,6 +1218,7 @@ function JassApp() {
           {NAMES[p]}{isDecider ? " ★" : ""}
         </div>
         <div style={{ fontSize: 11, color: C.dim }}>{r.hands[p].length} Karten</div>
+        {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>
     );
   };
@@ -1133,6 +1247,10 @@ function JassApp() {
       {/* Tisch */}
       <div onClick={() => r.phase === "trickDone" && collect(game)} style={{ flex: 1, position: "relative", maxWidth: 560, width: "100%", margin: "0 auto", minHeight: 0 }}>
         <Seat p={2} style={{ top: 10, left: "50%", transform: "translateX(-50%)" }} />
+        <div style={{ position: "absolute", top: 10, right: 8, zIndex: 5 }} onClick={(ev) => ev.stopPropagation()}>
+          <TafelBadge onClick={() => setModal("tafel")} />
+        </div>
+        {wonBy[0] > 0 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)" }}><TrickPile n={wonBy[0]} w={pileW} /></div>}
         <Seat p={3} style={{ top: "42%", left: 8 }} />
         <Seat p={1} style={{ top: "42%", right: 8 }} />
         <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0 }}>
@@ -1175,7 +1293,7 @@ function JassApp() {
       {/* Status + Hand */}
       <div style={{ textAlign: "center", fontSize: 13, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
-        <div style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
+        <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
           {hand.map((c, i) => (
             <div key={c} style={{ position: "absolute", left: i * step, top: 0, zIndex: i }}>
               <Card id={c} deck={deck} w={cw} onClick={() => tapCard(c)} dim={myTurn && !legal.includes(c)} raised={selected === c} trump={r.trump != null && E.isTrump(c, r.trump)} />
