@@ -239,6 +239,50 @@ async function imgWrite(fn) {
     tx.onerror = () => rej(tx.error);
   });
 }
+// PDF: Seiten werden mit pdf.js in Bilder umgewandelt. Die Bibliothek wird
+// erst geladen, wenn tatsächlich ein PDF gewählt wird (vom CDN, kein Build).
+const PDFJS_BASE = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/";
+let pdfjsPromise = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!pdfjsPromise) {
+    pdfjsPromise = new Promise((res, rej) => {
+      const sc = document.createElement("script");
+      sc.src = PDFJS_BASE + "pdf.min.js";
+      sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + "pdf.worker.min.js"; res(window.pdfjsLib); };
+      sc.onerror = () => { pdfjsPromise = null; rej(new Error("PDF-Unterstützung konnte nicht geladen werden (offline?)")); };
+      document.head.appendChild(sc);
+    });
+  }
+  return pdfjsPromise;
+}
+const isPdf = (f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+// Jede PDF-Seite als eigenes Bild (Blob, längere Seite ca. 2000 px)
+async function pdfToImages(file) {
+  const lib = await loadPdfJs();
+  const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const out = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    const vp1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: 2000 / Math.max(vp1.width, vp1.height) });
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+    await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.92));
+    blob.name = file.name + " – Seite " + n;
+    out.push(blob);
+  }
+  return out;
+}
+// Dateiliste nach Namen sortieren und PDFs in ihre Seiten auflösen (Seitenreihenfolge bleibt)
+async function expandFiles(files) {
+  const sorted = files.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const out = [];
+  for (const f of sorted) { if (isPdf(f)) out.push(...(await pdfToImages(f))); else out.push(f); }
+  return out;
+}
+
 function loadImage(file) {
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file);
@@ -278,7 +322,6 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
   const RANKS = [0, 1, 2, 3, 4, 5, 6, 7, 8], SUITS = [0, 1, 2, 3];
   const byRank = settings.imgOrder === "rang";
   const order = byRank ? RANKS.flatMap((r) => SUITS.map((s) => s * 9 + r)) : SUITS.flatMap((s) => RANKS.map((r) => s * 9 + r));
-  const byName = (files) => files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const key = (id) => deck + ":" + id;
   const count = order.filter((id) => imgs[key(id)]).length;
 
@@ -302,28 +345,34 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
       await store(pairs);
     } catch (e) { setBusy("Fehler: " + (e.message || e)); }
   };
-  const onGroups = (ev) => {
-    const files = byName(Array.from(ev.target.files || []));
+  // Ausgewählte Dateien lesen; PDFs werden in Seiten-Bilder aufgelöst
+  const pick = async (ev) => {
+    const raw = Array.from(ev.target.files || []);
     ev.target.value = "";
+    if (!raw.length) return [];
+    if (raw.some(isPdf)) setBusy("Lese PDF…");
+    try { return await expandFiles(raw); } catch (e) { setBusy("Fehler: " + (e.message || e)); return []; }
+  };
+  const onGroups = async (ev) => {
+    const files = await pick(ev);
     if (files.length) storeGroups(files.slice(0, 9).map((f, i) => [i, f]));
   };
-  const onGroup = (ev) => {
-    const f = ev.target.files && ev.target.files[0];
-    ev.target.value = "";
-    if (f && groupRankRef.current != null) storeGroups([[groupRankRef.current, f]]);
+  const onGroup = async (ev) => {
+    const r = groupRankRef.current;
+    const files = await pick(ev);
+    if (files.length && r != null) storeGroups([[r, files[0]]]);
   };
-  const onMulti = (ev) => {
-    const files = byName(Array.from(ev.target.files || []));
-    ev.target.value = "";
+  const onMulti = async (ev) => {
+    const files = await pick(ev);
     if (!files.length) return;
     const start = Math.max(0, order.findIndex((id) => !imgs[key(id)]));
     const ids = order.slice(start).concat(order.slice(0, start));
     store(files.slice(0, 36).map((f, i) => [ids[i], f]));
   };
-  const onSingle = (ev) => {
-    const f = ev.target.files && ev.target.files[0];
-    ev.target.value = "";
-    if (f && slotRef.current != null) store([[slotRef.current, f]]);
+  const onSingle = async (ev) => {
+    const id = slotRef.current;
+    const files = await pick(ev);
+    if (files.length && id != null) store([[id, files[0]]]);
   };
   const removeAll = async () => {
     if (!window.confirm("Alle eigenen Bilder für diese Karten löschen?")) return;
@@ -337,7 +386,7 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
     <Modal title="Eigene Kartenbilder" onClose={onClose} wide>
       <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 12 }}>
         Fotos oder Scans deiner eigenen Karten ({deck === "ch" ? "Deutschschweizer" : "französische"} Karten). Die Bilder bleiben <b style={{ color: C.text }}>nur auf diesem Gerät</b> und werden nirgends hochgeladen.
-        Bei mehreren Bildern gilt die Reihenfolge der Dateinamen (bei Fotos = Aufnahme-Reihenfolge). Einzelne Karte: Feld antippen.
+        Bei mehreren Bildern gilt die Reihenfolge der Dateinamen (bei Fotos = Aufnahme-Reihenfolge). Auch PDF möglich: jede Seite zählt wie ein Bild. Einzelne Karte: Feld antippen.
       </div>
 
       <div style={{ fontWeight: 800, color: C.gold, fontSize: 14, marginBottom: 6 }}>Einzelfotos (eine Karte pro Bild)</div>
@@ -370,10 +419,10 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
         ))}
       </div>
 
-      <input ref={multiRef} type="file" accept="image/*" multiple onChange={onMulti} style={{ display: "none" }} />
-      <input ref={singleRef} type="file" accept="image/*" onChange={onSingle} style={{ display: "none" }} />
-      <input ref={groupsRef} type="file" accept="image/*" multiple onChange={onGroups} style={{ display: "none" }} />
-      <input ref={groupRef} type="file" accept="image/*" onChange={onGroup} style={{ display: "none" }} />
+      <input ref={multiRef} type="file" accept="image/*,application/pdf" multiple onChange={onMulti} style={{ display: "none" }} />
+      <input ref={singleRef} type="file" accept="image/*,application/pdf" onChange={onSingle} style={{ display: "none" }} />
+      <input ref={groupsRef} type="file" accept="image/*,application/pdf" multiple onChange={onGroups} style={{ display: "none" }} />
+      <input ref={groupRef} type="file" accept="image/*,application/pdf" onChange={onGroup} style={{ display: "none" }} />
       {busy && <div style={{ fontSize: 13, color: C.gold, marginBottom: 10 }}>{busy}</div>}
       <div style={{ fontSize: 13, marginBottom: 8 }}>{count} von 36 Karten mit eigenem Bild</div>
       {[0, 1, 2, 3].map((s) => (
