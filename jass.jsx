@@ -816,7 +816,7 @@ function RulesModal({ onClose, deck }) {
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z – 100er als Striche oben, 50er auf der Diagonale, 20er unten, der Rest als Zahl. Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
+      {p("Vorderseite: pro Team ein Z – 100er als Striche oben, 50er auf der Diagonale, 20er unten, die Einer als kleine Striche rechts davon. Ab 11 Einern wird stattdessen ein 20er-Strich mehr gemacht und der Unterschied mit waagrechten Minus-Strichen abgezogen (z.B. 18 = 20er und 2 Minus-Striche). Rückseite (über alle Partien): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -879,7 +879,11 @@ function tafelStriche(history, team) {
     rest += (p % 50) % 20;
     while (rest >= 20) { z++; rest -= 20; }
   });
-  return { h, f, z, rest };
+  // Einer als Striche; ab 11 ist «ein 20er mehr und Minus-Striche» kürzer
+  // (z.B. 18 = 20er-Strich und 2 Minus-Striche statt 18 Einer-Striche).
+  let minus = 0;
+  if (rest >= 11) { z++; minus = 20 - rest; rest = 0; }
+  return { h, f, z, rest, minus };
 }
 
 function SlateDefs() {
@@ -932,7 +936,11 @@ function TafelVorderseite({ game, pad }) {
         <Tally n={Math.min(s.h, 35)} sx={L + 12} sy={T} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 100} />
         <Tally n={Math.min(s.f, 30)} sx={R - 26} sy={T + 14} ux={ux} uy={uy} nx={-uy} ny={ux} len={14} step={7} seed={team * 1000 + 300} />
         <Tally n={Math.min(s.z, 35)} sx={L + 12} sy={B} ux={1} uy={0} nx={0} ny={1} len={16} step={7} seed={team * 1000 + 500} />
-        {s.rest > 0 && <ChalkText x={R + 26} y={B + 7} size={20} anchor="middle">{s.rest}</ChalkText>}
+        {/* Einer: kleine Striche rechts der unteren Linie, oder Minus-Striche (waagrecht) */}
+        <Tally n={s.rest} sx={R + 10} sy={B - 4} ux={1} uy={0} nx={0} ny={1} len={10} step={4.5} seed={team * 1000 + 700} />
+        {Array.from({ length: s.minus }, (_, i) => (
+          <ChalkLine key={"m" + i} x1={R + 16} y1={B - 6 - i * 6} x2={R + 30} y2={B - 6 - i * 6} seed={team * 1000 + 800 + i} w={1.8} />
+        ))}
         <ChalkText x={L} y={oy + 26} size={22}>{TEAM[team]}</ChalkText>
         <ChalkText x={L + 6} y={T + 64} size={15}>{game.scores[team]}</ChalkText>
         {game.berg === team && <ChalkText x={R - 70} y={B - 22} size={13}>Berg ✓</ChalkText>}
