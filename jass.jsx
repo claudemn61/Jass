@@ -885,7 +885,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
       {row("Eigene Kartenbilder", <button onClick={onImages} style={{ ...btn(false), display: "inline-flex", alignItems: "center", gap: 8 }}>🃏 Eigene Kartenbilder…</button>, "Fotos/Scans deiner eigenen Karten und Rückseite – nur auf diesem Gerät gespeichert.")}
       {row("Nicht spielbare Karten", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal zeigen"]]} />,
         settings.dimIllegal === false ? "Alle Karten sehen gleich aus; eine nicht erlaubte Karte lässt sich trotzdem nicht spielen." : null)}
-      {row("Karte spielen", <Choice value={settings.oneTap} onChange={(v) => set("oneTap", v)} options={[[false, "Antippen + bestätigen"], [true, "Ein Tipp"]]} />)}
+      {row("Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "Antippen + bestätigen"], ["tap", "Ein Tipp"], ["swipe", "Wischen"]]} />,
+        (settings.playMode === "swipe") ? "Karte mit dem Finger aus der Hand nach oben auf den Tisch ziehen." : null)}
     </Modal>
   );
 }
@@ -1264,6 +1265,7 @@ function JassApp() {
   const [toast, setToast] = useState(null);
   const [selected, setSelected] = useState(null);
   const [endHidden, setEndHidden] = useState(false); // Rundenabrechnung zugeklappt
+  const [drag, setDrag] = useState(null); // Wischen: { c, x0, y0, dx, dy, moved }
   const toastTimer = useRef(null);
   const [imgs, setImgs] = useState({});
   const reloadImgs = () => imgAll().then(setImgs).catch((e) => console.error("Kartenbilder:", e));
@@ -1418,11 +1420,34 @@ function JassApp() {
   const handW = cw + step * Math.max(0, hand.length - 1);
   const tw = Math.round(cw * 0.92), th = Math.round(tw * 1.5);
 
+  const playMode = settings.playMode || (settings.oneTap ? "tap" : "confirm");
   const tapCard = (c) => {
+    if (playMode === "swipe") { if (!drag || !drag.moved) say("Karte nach oben auf den Tisch wischen", 1500); return; }
     if (!myTurn) return;
     if (!legal.includes(c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
-    if (settings.oneTap || selected === c) play(game, 0, c);
+    if (playMode === "tap" || selected === c) play(game, 0, c);
     else setSelected(c);
+  };
+  // Wischen: Karte folgt dem Finger; nach oben losgelassen (> 70 px) wird sie gespielt
+  const dragStart = (e, c) => {
+    if (playMode !== "swipe") return;
+    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ c, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, moved: false });
+  };
+  const dragMove = (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    setDrag({ ...drag, dx, dy, moved: drag.moved || Math.abs(dx) + Math.abs(dy) > 6 });
+  };
+  const dragEnd = () => {
+    if (!drag) return;
+    const d = drag;
+    setDrag(null);
+    if (d.dy < -70) {
+      if (!myTurn) { say("Du bist noch nicht dran", 1300); return; }
+      if (!legal.includes(d.c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
+      play(game, 0, d.c);
+    }
   };
 
   const trickPos = (p) => {
@@ -1439,7 +1464,7 @@ function JassApp() {
 
   const status = (() => {
     if (r.phase === "choose") return r.decider === 0 ? (r.pushed ? NAMES[2] + " hat geschoben – du wählst" : "Du bestimmst den Trumpf") : NAMES[r.decider] + " überlegt…" + (r.pushed ? " (geschoben)" : "");
-    if (r.phase === "play") return myTurn ? (selected != null && !settings.oneTap ? "Nochmals tippen zum Spielen" : "Du bist dran") : NAMES[r.turn] + " ist dran";
+    if (r.phase === "play") return myTurn ? (playMode === "swipe" ? "Du bist dran – Karte auf den Tisch wischen" : selected != null && playMode === "confirm" ? "Nochmals tippen zum Spielen" : "Du bist dran") : NAMES[r.turn] + " ist dran";
     if (r.phase === "trickDone") return NAMES[r.trick[winnerIdx].p] + " sticht";
     return "";
   })();
@@ -1474,6 +1499,7 @@ function JassApp() {
   const Seat = ({ p, style }) => {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
+    const pushedBy = r.pushed && r.chooser === p;
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
         <div style={{ padding: "4px 10px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13, fontWeight: 700,
@@ -1482,6 +1508,8 @@ function JassApp() {
           {NAMES[p]}{isDecider ? " ★" : ""}
         </div>
         <div style={{ fontSize: 11, color: C.dim }}>{r.hands[p].length} Karten</div>
+        {isDecider && <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>angesagt{r.pushed ? <><br />(geschoben)</> : ""}</div>}
+        {pushedBy && <div style={{ fontSize: 11, color: C.dim }}>hat geschoben</div>}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>
@@ -1532,10 +1560,11 @@ function JassApp() {
         )}
         <div style={{ position: "absolute", bottom: 8, left: 8, fontSize: 12, color: C.dim }}>
           Runde {r.no}{r.trump != null ? " · Stiche " + r.tricks[0] + ":" + r.tricks[1] : ""}
+          {r.trump != null && <div>Angesagt: {NAMES[r.decider]} {r.pushed ? "(geschoben)" : "(primär)"}</div>}
         </div>
         {(r.phase === "play" || r.phase === "trickDone") && !game.over && (
           <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
-            style={{ position: "absolute", bottom: 30, left: 8, ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
+            style={{ position: "absolute", bottom: r.trump != null ? 46 : 30, left: 8, ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
         )}
         {toast && (
           <div style={{ position: "absolute", top: "24%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "8px 14px", borderRadius: 12, fontSize: 14, fontWeight: 600, maxWidth: "86%", textAlign: "center", zIndex: 20, pointerEvents: "none" }}>{toast}</div>
@@ -1562,7 +1591,11 @@ function JassApp() {
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
           {hand.map((c, i) => (
-            <div key={c} style={{ position: "absolute", left: i * step, top: 0, zIndex: i }}>
+            <div key={c}
+              onPointerDown={(e) => dragStart(e, c)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={() => setDrag(null)}
+              style={{ position: "absolute", left: i * step, top: 0, zIndex: drag && drag.c === c ? 60 : i, touchAction: playMode === "swipe" ? "none" : "auto",
+                transform: drag && drag.c === c ? "translate(" + drag.dx + "px," + drag.dy + "px) rotate(" + drag.dx / 20 + "deg)" : "none",
+                transition: drag && drag.c === c ? "none" : "transform 0.15s" }}>
               <Card id={c} deck={deck} w={cw} onClick={() => tapCard(c)} dim={settings.dimIllegal !== false && myTurn && !legal.includes(c)} raised={selected === c} trump={r.trump != null && E.isTrump(c, r.trump)} />
             </div>
           ))}
