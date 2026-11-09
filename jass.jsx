@@ -240,7 +240,6 @@ function Card({ id, deck, w, onClick, dim, raised, trump }) {
     }}>
       <div style={{ position: "absolute", left: w * 0.07, top: w * 0.05, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <span style={{ fontSize: w * 0.3, fontWeight: 700, color: col, lineHeight: 1, fontFamily: "Georgia, serif" }}>{label}</span>
-        <SuitIcon s={s} deck={deck} size={w * 0.24} />
       </div>
       <div style={{ position: "absolute", left: 0, right: 0, top: h * 0.3, display: "flex", justifyContent: "center" }}>
         <SuitIcon s={s} deck={deck} size={w * 0.58} />
@@ -465,7 +464,7 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
 
   const toggle = (k) => setSettings({ ...settings, [k]: !settings[k] });
   return (
-    <Modal title="Eigene Kartenbilder" onClose={onClose} wide>
+    <Modal title="Eigene Kartenbilder" onClose={onClose} wide page>
       <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 12 }}>
         Fotos oder Scans deiner eigenen Karten ({deck === "ch" ? "Deutschschweizer" : "französische"} Karten). Die Bilder bleiben <b style={{ color: C.text }}>nur auf diesem Gerät</b> und werden nirgends hochgeladen.
         Bei mehreren Bildern gilt die Reihenfolge der Dateinamen (bei Fotos = Aufnahme-Reihenfolge). Auch PDF möglich: jede Seite zählt wie ein Bild. Einzelne Karte: Feld antippen.
@@ -678,6 +677,51 @@ function StartSlate() {
   );
 }
 
+// Spielteppich: grüner Filz, abgegriffen (hellere, abgewetzte Stellen dort,
+// wo Karten gespielt und Stiche eingezogen werden), Flecken, dunkle Ränder.
+function FeltBackground() {
+  const rnd = (i) => { const x = Math.sin(i * 57.31) * 43758.5453; return x - Math.floor(x); };
+  const flecken = Array.from({ length: 7 }, (_, i) => (
+    <ellipse key={i} cx={30 + rnd(i) * 340} cy={80 + rnd(i + 20) * 640} rx={6 + rnd(i + 40) * 16} ry={4 + rnd(i + 60) * 10}
+      fill={i % 3 === 0 ? "rgba(255,255,230,0.035)" : "rgba(0,0,0,0.10)"} />
+  ));
+  const fusseln = Array.from({ length: 30 }, (_, i) => {
+    const x = rnd(i + 100) * 400, y = rnd(i + 200) * 800, a = rnd(i + 300) * 6.28, l = 3 + rnd(i + 400) * 6;
+    return <path key={i} d={"M" + x + " " + y + " q" + l * Math.cos(a) + " " + l * Math.sin(a) + " " + l * 1.6 * Math.cos(a + 0.6) + " " + l * 1.6 * Math.sin(a + 0.6)} stroke="rgba(230,240,220,0.10)" strokeWidth="0.6" fill="none" />;
+  });
+  return (
+    <svg viewBox="0 0 400 800" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: -1, pointerEvents: "none" }}>
+      <defs>
+        <radialGradient id="filz" cx="50%" cy="45%" r="75%">
+          <stop offset="0%" stopColor="#17573f" /><stop offset="60%" stopColor="#0f3d2e" /><stop offset="100%" stopColor="#07221a" />
+        </radialGradient>
+        <filter id="filzfaser">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="5" />
+          <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 1  0 0 0 0 0.85  0 0 0 0.13 0" />
+        </filter>
+        <filter id="filzwolken">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="9" />
+          <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.22 0" />
+        </filter>
+        <radialGradient id="abgewetzt">
+          <stop offset="0%" stopColor="rgba(190,215,170,0.17)" /><stop offset="60%" stopColor="rgba(190,215,170,0.07)" /><stop offset="100%" stopColor="rgba(190,215,170,0)" />
+        </radialGradient>
+      </defs>
+      <rect width="400" height="800" fill="url(#filz)" />
+      <rect width="400" height="800" filter="url(#filzwolken)" />
+      {/* abgewetzte Stellen: Tischmitte und vor jedem Spieler */}
+      <ellipse cx="200" cy="400" rx="150" ry="170" fill="url(#abgewetzt)" />
+      <ellipse cx="200" cy="740" rx="170" ry="70" fill="url(#abgewetzt)" />
+      <ellipse cx="200" cy="90" rx="110" ry="60" fill="url(#abgewetzt)" />
+      <ellipse cx="25" cy="400" rx="60" ry="120" fill="url(#abgewetzt)" />
+      <ellipse cx="375" cy="400" rx="60" ry="120" fill="url(#abgewetzt)" />
+      {flecken}
+      {fusseln}
+      <rect width="400" height="800" filter="url(#filzfaser)" />
+    </svg>
+  );
+}
+
 function useWidth() {
   const [w, setW] = useState(window.innerWidth);
   useEffect(() => { const f = () => setW(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -691,7 +735,22 @@ const btn = (primary) => ({
   fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 });
 
-function Modal({ title, onClose, children, wide }) {
+function Modal({ title, onClose, children, wide, page }) {
+  if (page) {
+    // Ganze Seite auf der alten Schiefertafel (wie der Startbildschirm)
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 50, overflowY: "auto", background: "#1b2120", color: C.text }}>
+        <StartSlate />
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 560, margin: "0 auto", padding: "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ flex: 1, fontSize: 28, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.2)" }}>{title}</div>
+            {onClose && <button onClick={onClose} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid " + C.line, borderRadius: 20, color: C.text, fontSize: 18, width: 36, height: 36, cursor: "pointer" }}>✕</button>}
+          </div>
+          {children}
+        </div>
+      </div>
+    );
+  }
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, border: "1px solid " + C.line, borderRadius: 16, width: "100%", maxWidth: wide ? 520 : 420, maxHeight: "85vh", overflowY: "auto", padding: "16px 18px", boxSizing: "border-box", color: C.text }}>
@@ -715,7 +774,7 @@ function Choice({ value, options, onChange }) {
   );
 }
 
-function SettingsModal({ settings, setSettings, onClose, inGame }) {
+function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   const row = (label, el, hint) => (
     <div style={{ marginBottom: 16 }}>
@@ -725,7 +784,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame }) {
     </div>
   );
   return (
-    <Modal title="Einstellungen" onClose={onClose}>
+    <Modal title="Einstellungen" onClose={onClose} page>
       {row("Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Deutschschweizer"], ["fr", "Französisch"]]} />)}
       {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
       {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
@@ -733,6 +792,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame }) {
       {row("Spielstärke der Computer-Spieler", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
         settings.level === "normal" ? "Einfache Faustregeln." : "Rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
       {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"]]} />)}
+      {row("Eigene Kartenbilder", <button onClick={onImages} style={{ ...btn(false), display: "inline-flex", alignItems: "center", gap: 8 }}>🃏 Eigene Kartenbilder…</button>, "Fotos/Scans deiner eigenen Karten und Rückseite – nur auf diesem Gerät gespeichert.")}
       {row("Karte spielen", <Choice value={settings.oneTap} onChange={(v) => set("oneTap", v)} options={[[false, "Antippen + bestätigen"], [true, "Ein Tipp"]]} />)}
     </Modal>
   );
@@ -743,7 +803,7 @@ function RulesModal({ onClose, deck }) {
   const p = (t) => <p style={{ margin: "0 0 10px", fontSize: 14, lineHeight: 1.5 }}>{t}</p>;
   const h = (t) => <div style={{ fontWeight: 800, color: C.gold, margin: "14px 0 6px" }}>{t}</div>;
   return (
-    <Modal title="Regeln (Schieber)" onClose={onClose} wide>
+    <Modal title="Regeln (Schieber)" onClose={onClose} wide page>
       {p("Du spielst mit deinem Partner (oben) gegen die beiden Gegner links und rechts. Gespielt wird mit 36 Karten im Gegenuhrzeigersinn.")}
       {h("Trumpf ansagen")}
       {p("Reihum darf ein Spieler den Trumpf bestimmen: eine Farbe, Obenabe (Ass sticht am höchsten, kein Trumpf) oder Undenufe (Sechser sticht am höchsten). Wer nicht will, kann schieben – dann muss der Partner wählen. Ausgespielt wird immer von dem, der an der Reihe war.")}
@@ -841,9 +901,9 @@ function SlateDefs() {
   );
 }
 
-function Slate({ w, h, children }) {
+function Slate({ w, h, children, pad }) {
   return (
-    <div style={{ padding: 12, borderRadius: 10, background: "linear-gradient(135deg, #a8743f, #7a4b22 45%, #a8743f 70%, #6b3f1b)", boxShadow: "0 8px 24px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(0,0,0,0.25)" }}>
+    <div style={{ padding: pad != null ? pad : 12, borderRadius: pad != null ? pad * 0.8 : 10, background: "linear-gradient(135deg, #a8743f, #7a4b22 45%, #a8743f 70%, #6b3f1b)", boxShadow: "0 8px 24px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(0,0,0,0.25)" }}>
       <svg viewBox={"0 0 " + w + " " + h} style={{ width: "100%", display: "block", borderRadius: 3, boxShadow: "inset 0 0 12px rgba(0,0,0,0.8)" }}>
         <SlateDefs />
         <rect width={w} height={h} fill="url(#schieferGrund)" />
@@ -857,7 +917,7 @@ function Slate({ w, h, children }) {
   );
 }
 
-function TafelVorderseite({ game }) {
+function TafelVorderseite({ game, pad }) {
   const W = 360, H = 500;
   const half = (team, oy) => {
     const s = tafelStriche(game.history, team);
@@ -880,7 +940,7 @@ function TafelVorderseite({ game }) {
     );
   };
   return (
-    <Slate w={W} h={H}>
+    <Slate w={W} h={H} pad={pad}>
       {half(0, 4)}
       <ChalkLine x1={14} y1={250} x2={W - 14} y2={250} seed={77} w={1.6} />
       {half(1, 252)}
@@ -982,7 +1042,7 @@ function LastTrickModal({ lt, deck, trump, onClose }) {
 
 function InfoModal({ stats, onClose }) {
   return (
-    <Modal title="Info" onClose={onClose}>
+    <Modal title="Info" onClose={onClose} page>
       <div style={{ fontSize: 14, marginBottom: 14 }}>
         <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Statistik</div>
         <div>Spiele: {stats.played} · gewonnen: {stats.won}{stats.played ? " (" + Math.round((100 * stats.won) / stats.played) + "%)" : ""}</div>
@@ -1001,7 +1061,7 @@ function InfoModal({ stats, onClose }) {
   );
 }
 
-function RoundEndModal({ game, deck, onNext }) {
+function RoundEndModal({ game, deck, onNext, onTafel }) {
   const r = game.round, res = r.result;
   const row = (label, a, b, bold) => (
     <tr style={{ borderTop: "1px solid " + C.line, fontWeight: bold ? 800 : 400 }}>
@@ -1034,6 +1094,11 @@ function RoundEndModal({ game, deck, onNext }) {
         </tbody>
       </table>
       {weisList.length > 0 && <div style={{ fontSize: 12, color: C.dim, marginTop: 8 }}>{weisList.join(" · ")}</div>}
+      {/* Miniatur der Jasstafel, öffnet die grosse Tafel */}
+      <div onClick={onTafel} style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, cursor: "pointer" }}>
+        <div style={{ width: 92, flexShrink: 0 }}><TafelVorderseite game={game} pad={5} /></div>
+        <div style={{ fontSize: 13, color: C.dim }}>Jasstafel ansehen ›</div>
+      </div>
       <button onClick={onNext} style={{ ...btn(true), width: "100%", marginTop: 16 }}>{over ? "Neues Spiel" : "Nächste Runde"}</button>
     </Modal>
   );
@@ -1072,7 +1137,7 @@ function JassApp() {
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
   const imgCtx = { on: settings.customImgs, index: settings.imgIndex, map: imgs };
   const wrap = (el) => <CardImgCtx.Provider value={imgCtx}>{el}</CardImgCtx.Provider>;
-  const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal(null)} />;
+  const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal("settings")} />;
   useEffect(() => { save("game", game); }, [game]);
   useEffect(() => { save("stats", stats); }, [stats]);
   const [striche, setStriche] = useState(() => ({ match: [0, 0], sieg: [0, 0], berg: [0, 0], ...load("striche", {}) }));
@@ -1190,12 +1255,11 @@ function JassApp() {
         {canResume && <button onClick={() => setHome(false)} style={{ ...btn(true), width: 240, marginTop: 10 }}>Weiterspielen ({game.scores[0]} : {game.scores[1]})</button>}
         <button onClick={canResume ? askNew : startNew} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
         <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Einstellungen</button>
-        <button onClick={() => setModal("images")} style={{ ...btn(false), width: 240 }}>Eigene Kartenbilder</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
         <div style={{ color: "rgba(240,240,232,0.55)", fontSize: 12, marginTop: 10, fontFamily: CHALK_FONT }}>v{APP_VERSION}</div>
         </div>
-        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onClose={() => setModal(null)} />}
+        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
         {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
         {imgModal}
@@ -1257,7 +1321,8 @@ function JassApp() {
   };
 
   return wrap(
-    <div style={{ height: "100%", background: "radial-gradient(ellipse at 50% 40%, " + C.felt + ", " + C.felt2 + ")", color: C.text, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <div style={{ height: "100%", background: C.felt2, position: "relative", zIndex: 0, color: C.text, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <FeltBackground />
       {/* Kopfzeile */}
       <div style={{ paddingTop: "env(safe-area-inset-top, 0px)", background: "rgba(0,0,0,0.25)", borderBottom: "1px solid " + C.line }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", maxWidth: 560, margin: "0 auto", boxSizing: "border-box" }}>
@@ -1341,16 +1406,15 @@ function JassApp() {
           ["Jasstafel", () => setModal("tafel")],
           r.lastTrick ? ["Letzter Stich", () => setModal("last")] : null,
           ["Einstellungen", () => setModal("settings")],
-          ["Eigene Kartenbilder", () => setModal("images")],
           ["Regeln", () => setModal("rules")],
           ["Info & Statistik", () => setModal("info")],
           ["Zum Startbildschirm", () => setHome(true)],
         ]} />
       )}
-      {r.phase === "roundEnd" && !modal && <RoundEndModal game={game} deck={deck} onNext={() => (game.over ? startNew() : setGame(nextRound(game)))} />}
+      {r.phase === "roundEnd" && !modal && <RoundEndModal game={game} deck={deck} onTafel={() => setModal("tafel")} onNext={() => (game.over ? startNew() : setGame(nextRound(game)))} />}
       {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
-      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onClose={() => setModal(null)} />}
+      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
       {imgModal}
