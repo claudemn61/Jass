@@ -31,7 +31,7 @@ function save(key, val) {
 }
 
 const DEFAULT_NAMES = ["Du", "Rechts", "Partner", "Links"];
-const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark" };
+const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark", dimIllegal: true };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
@@ -883,6 +883,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
       {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"]]} />)}
       {row("Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes iPhone übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben, nicht veröffentlichen.")}
       {row("Eigene Kartenbilder", <button onClick={onImages} style={{ ...btn(false), display: "inline-flex", alignItems: "center", gap: 8 }}>🃏 Eigene Kartenbilder…</button>, "Fotos/Scans deiner eigenen Karten und Rückseite – nur auf diesem Gerät gespeichert.")}
+      {row("Nicht spielbare Karten", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal zeigen"]]} />,
+        settings.dimIllegal === false ? "Alle Karten sehen gleich aus; eine nicht erlaubte Karte lässt sich trotzdem nicht spielen." : null)}
       {row("Karte spielen", <Choice value={settings.oneTap} onChange={(v) => set("oneTap", v)} options={[[false, "Antippen + bestätigen"], [true, "Ein Tipp"]]} />)}
     </Modal>
   );
@@ -1196,7 +1198,7 @@ function InfoModal({ stats, onClose }) {
   );
 }
 
-function RoundEndModal({ game, deck, onNext, onTafel }) {
+function RoundEndModal({ game, deck, onNext, onTafel, onClose }) {
   const r = game.round, res = r.result;
   const row = (label, a, b, bold) => (
     <tr style={{ borderTop: "1px solid " + C.line, fontWeight: bold ? 800 : 400 }}>
@@ -1210,7 +1212,7 @@ function RoundEndModal({ game, deck, onNext, onTafel }) {
     : [];
   const over = game.over;
   return (
-    <Modal title={over ? (over.winner === 0 ? "🏆 Gewonnen!" : "Verloren") : "Runde " + r.no}>
+    <Modal title={over ? (over.winner === 0 ? "🏆 Gewonnen!" : "Verloren") : "Runde " + r.no} onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 14 }}>
         <ModeIcon t={r.trump} deck={deck} size={20} /> {modeName(r.trump, deck)} · {NAMES[r.decider]}{r.pushed ? " (geschoben)" : ""} · ×{res.mult}
       </div>
@@ -1261,6 +1263,7 @@ function JassApp() {
   const [menu, setMenu] = useState(false);
   const [toast, setToast] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [endHidden, setEndHidden] = useState(false); // Rundenabrechnung zugeklappt
   const toastTimer = useRef(null);
   const [imgs, setImgs] = useState({});
   const reloadImgs = () => imgAll().then(setImgs).catch((e) => console.error("Kartenbilder:", e));
@@ -1365,7 +1368,7 @@ function JassApp() {
     return () => clearTimeout(timer);
   }, [game, home]);
 
-  const startNew = () => { setSelected(null); setModal(null); setHome(false); setGame(newGame(settings)); };
+  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setGame(newGame(settings)); };
   const askNew = () => {
     if (game && !game.over && (game.history.length || (game.round && game.round.trickNo > 0))) {
       if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen?")) return;
@@ -1549,7 +1552,7 @@ function JassApp() {
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
           {hand.map((c, i) => (
             <div key={c} style={{ position: "absolute", left: i * step, top: 0, zIndex: i }}>
-              <Card id={c} deck={deck} w={cw} onClick={() => tapCard(c)} dim={myTurn && !legal.includes(c)} raised={selected === c} trump={r.trump != null && E.isTrump(c, r.trump)} />
+              <Card id={c} deck={deck} w={cw} onClick={() => tapCard(c)} dim={settings.dimIllegal !== false && myTurn && !legal.includes(c)} raised={selected === c} trump={r.trump != null && E.isTrump(c, r.trump)} />
             </div>
           ))}
         </div>
@@ -1566,7 +1569,13 @@ function JassApp() {
           ["Zum Startbildschirm", () => setHome(true)],
         ]} />
       )}
-      {r.phase === "roundEnd" && !modal && <RoundEndModal game={game} deck={deck} onTafel={() => setModal("tafel")} onNext={() => (game.over ? startNew() : setGame(nextRound(game)))} />}
+      {r.phase === "roundEnd" && !modal && !endHidden && <RoundEndModal game={game} deck={deck} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} />}
+      {r.phase === "roundEnd" && endHidden && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
+          <button onClick={() => setEndHidden(false)} style={{ ...btn(false), background: "rgba(10,30,22,0.92)" }}>Abrechnung</button>
+          <button onClick={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} style={btn(true)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
+        </div>
+      )}
       {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
