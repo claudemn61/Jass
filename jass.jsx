@@ -10,7 +10,7 @@ const CHANGELOG = [
   {
     version: "1.1.2",
     changes: [
-      "Striche (Rückseite der Jasstafel) gelten für das laufende Spiel und werden bei jedem neuen Spiel gelöscht – keine verwaisten Berg-Striche mehr nach abgebrochenen Spielen",
+      "Striche (Rückseite der Jasstafel): bei Spielabbruch werden die Striche dieses Spiels entfernt, frühere bleiben; einzelne Striche manuell löschbar",
     ],
   },
   {
@@ -139,8 +139,12 @@ function finishRound(g, rUpd, res, winner, extra) {
     if (hit.length) berg = hit.length === 1 ? hit[0] : (scores[0] >= scores[1] ? 0 : 1);
   }
   const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match };
+  // Striche dieses Spiels (für das Entfernen bei Spielabbruch)
+  const pend = { match: ((g.pend && g.pend.match) || [0, 0]).slice(), berg: ((g.pend && g.pend.berg) || [0, 0]).slice() };
+  if (res.match != null) pend.match[res.match]++;
+  if (berg != null && g.berg == null) pend.berg[berg]++;
   return {
-    ...g, scores, berg, history: g.history.concat([entry]),
+    ...g, scores, berg, pend, history: g.history.concat([entry]),
     over: winner != null ? { winner } : null,
     round: { ...r, trick: [], turn: null, phase: "roundEnd", result: res, ...(extra || {}) },
   };
@@ -948,7 +952,7 @@ function RulesModal({ onClose, deck }) {
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (für das laufende Spiel, wird bei jedem neuen Spiel gelöscht): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
+      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Spiele; bei Spielabbruch werden die Striche dieses Spiels entfernt, einzelne Striche lassen sich löschen): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
       {h("Computer-Spieler")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -1154,7 +1158,7 @@ function TafelRueckseite({ striche }) {
   );
 }
 
-function TafelModal({ game, deck, striche, onResetStriche, onClose }) {
+function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) {
   const [side, setSide] = useState("vorne");
   return (
     <Modal title="Jasstafel" onClose={onClose} wide>
@@ -1166,7 +1170,22 @@ function TafelModal({ game, deck, striche, onResetStriche, onClose }) {
         <div>
           <TafelRueckseite striche={striche} />
           <div style={{ fontSize: 12, color: C.dim, margin: "10px 0" }}>
-            Für das laufende Spiel (wird bei «Neues Spiel» gelöscht): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg 1 Strich ({bergOf(game.target) ? bergOf(game.target) + " Punkte zuerst erreicht" : "bei Ziel " + game.target + " ohne Berg"}).
+            Über alle Spiele (bei Spielabbruch werden die Striche dieses Spiels entfernt): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, Berg 1 Strich ({bergOf(game.target) ? bergOf(game.target) + " Punkte zuerst erreicht" : "bei Ziel " + game.target + " ohne Berg"}).
+          </div>
+          <div style={{ fontSize: 13, color: C.dim, margin: "4px 0 6px" }}>Einzelne Striche löschen:</div>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 6, alignItems: "center", marginBottom: 12, fontSize: 13 }}>
+            <div></div><div style={{ color: C.dim }}>{teamName(0)}</div><div style={{ color: C.dim }}>{teamName(1)}</div>
+            {[["Match", "match", 1], ["Sieg", "sieg", 2], ["Berg", "berg", 1]].map(([lab, k, f]) => (
+              <React.Fragment key={k}>
+                <div>{lab}</div>
+                {[0, 1].map((t) => (
+                  <button key={t} disabled={!striche[k][t]} onClick={() => onRemove(k, t)}
+                    style={{ ...btn(false), padding: "5px 8px", fontSize: 13, opacity: striche[k][t] ? 1 : 0.4 }}>
+                    − {f === 2 ? "2 Striche" : "1 Strich"} ({striche[k][t] * f})
+                  </button>
+                ))}
+              </React.Fragment>
+            ))}
           </div>
           <button onClick={() => { if (window.confirm("Rückseite der Tafel abwischen (alle Striche löschen)?")) onResetStriche(); }} style={btn(false)}>Tafel abwischen</button>
         </div>
@@ -1415,12 +1434,18 @@ function JassApp() {
     return () => clearTimeout(timer);
   }, [game, home, manual]);
 
-  // Neues Spiel: auch die Striche (Rückseite der Jasstafel) werden gelöscht
-  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] }); setGame(newGame(settings)); };
+  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setGame(newGame(settings)); };
   const askNew = () => {
     if (game && !game.over && (game.history.length || (game.round && game.round.trickNo > 0))) {
-      if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen?")) return;
+      if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen? Die Striche dieses Spiels werden entfernt.")) return;
       setStats((s) => ({ ...s, played: s.played + 1 }));
+      // Spielabbruch: Striche dieses Spiels entfernen, frühere bleiben
+      const pd = game.pend;
+      if (pd) setStriche((st) => ({
+        ...st,
+        match: [0, 1].map((t) => Math.max(0, st.match[t] - pd.match[t])),
+        berg: [0, 1].map((t) => Math.max(0, st.berg[t] - pd.berg[t])),
+      }));
     }
     startNew();
   };
@@ -1689,7 +1714,8 @@ function JassApp() {
           <button onClick={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} style={btn(true)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
         </div>
       )}
-      {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })} onClose={() => setModal(null)} />}
+      {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
+        onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}

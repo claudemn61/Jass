@@ -21,7 +21,8 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   verloren); am Rundenende normale Abrechnung (Stöck – Weis – Stich).
 - Jasstafel (`TafelModal`): Schiefer-Optik als SVG. Vorderseite Z, pro Runde ergänzt (nie ausradiert): 100er in Fünferbündeln (V nur bei 500
   in einer Runde), 50er je zwei über Kreuz, 20er in Fünferbündeln; nur Einer (als Zahl) werden angepasst
-  (ab 11 → 20er-Strich + Minus-Einer, z.B. 9 + 8 = 20er und −3). Rückseite Striche des laufenden Spiels, bei neuem Spiel gelöscht (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
+  (ab 11 → 20er-Strich + Minus-Einer, z.B. 9 + 8 = 20er und −3). Rückseite Striche über alle Spiele; bei Spielabbruch werden die Striche dieses Spiels
+  (`game.pend`) abgezogen, einzelne Striche manuell löschbar (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
 - Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
   Computer erhalten diese Information nicht.
