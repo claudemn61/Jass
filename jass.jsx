@@ -52,7 +52,7 @@ function save(key, val) {
 
 const DEFAULT_NAMES = ["Du", "Rechts", "Partner", "Links"];
 const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark", dimIllegal: true, openCards: false };
-const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 } };
+const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 }, manuell: { bot: 0, trick: 0 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
 const RANK_NAME = { ch: ["Sechser", "Siebner", "Achter", "Nell", "Banner", "Under", "Ober", "König", "Ass"], fr: ["Sechser", "Siebner", "Achter", "Nell", "Zehner", "Bube", "Dame", "König", "Ass"] };
@@ -906,7 +906,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
         (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + (inGame ? " Gilt ab dem nächsten Spiel." : ""))}
       {row("Spielstärke der Computer-Spieler", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
         settings.level === "normal" ? "Einfache Faustregeln." : "Rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
-      {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"]]} />)}
+      {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"], ["manuell", "Manuell"]]} />,
+        settings.speed === "manuell" ? "Jeder Zug der Mitspieler und das Einsammeln des Stichs erst nach Tippen auf den Teppich." : null)}
       {row("Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes iPhone übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben, nicht veröffentlichen.")}
       {row("Eigene Kartenbilder", <button onClick={onImages} style={{ ...btn(false), display: "inline-flex", alignItems: "center", gap: 8 }}>🃏 Eigene Kartenbilder…</button>, "Fotos/Scans deiner eigenen Karten und Rückseite – nur auf diesem Gerät gespeichert.")}
       {row("Offene Karten", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Verdeckt"], [true, "Offen (Lernmodus)"]]} />,
@@ -1375,33 +1376,38 @@ function JassApp() {
     setGame(ng);
   };
 
-  // Computer-Spieler und automatisches Einsammeln
+  // Computer-Spieler und Einsammeln: nächster Schritt (null = nichts zu tun)
+  const botStep = (g) => {
+    const r = g.round;
+    if (r.phase === "choose" && r.decider !== 0) return () => {
+      const strong = settings.level !== "normal";
+      const d = strong ? E.botChooseTrumpSmart(r.hands[r.decider], !r.pushed, r.decider, g.mult, { scores: g.scores, target: g.target }) : E.botChooseTrump(r.hands[r.decider], !r.pushed);
+      if (d === "push") push(g); else choose(g, d);
+    };
+    if (r.phase === "play" && r.turn !== 0) return () => {
+      const m = E.multiplier(r.trump, g.mult);
+      const st = [0, 0]; if (r.stoeck != null && r.stoeckDone) st[E.team(r.stoeck)] = 20;
+      const wp = r.trickNo >= 1 && r.weis ? r.weis.pts : [0, 0];
+      const endgame = { run: [0, 1].map((i) => g.scores[i] + (st[i] + wp[i] + r.trickPts[i]) * m), mult: m, target: g.target };
+      const ctx = { hand: r.hands[r.turn], trick: r.trick, t: r.trump, played: r.played, p: r.turn, declarer: r.chooser, tricks: r.tricksLog, tricksWon: r.tricks, weis: r.weis, endgame };
+      // Ältere Spielstände ohne Stichverlauf: Heuristik verwenden
+      const c = settings.level !== "normal" && r.tricksLog && r.tricksLog.length === r.trickNo ? E.botPlaySmart(ctx) : E.botPlay(ctx);
+      play(g, r.turn, c);
+    };
+    if (r.phase === "trickDone") return () => collect(g);
+    return null;
+  };
+  const manual = settings.speed === "manuell";
+  // Automatisch mit Verzögerung; im Modus «Manuell» erst beim Tippen auf den Teppich
   useEffect(() => {
-    if (!game || !game.round || home) return;
+    if (!game || !game.round || home || manual) return;
+    const step = botStep(game);
+    if (!step) return;
     const r = game.round;
-    let timer = null;
-    if (r.phase === "choose" && r.decider !== 0) {
-      timer = setTimeout(() => {
-        const strong = settings.level !== "normal";
-        const d = strong ? E.botChooseTrumpSmart(r.hands[r.decider], !r.pushed, r.decider, game.mult, { scores: game.scores, target: game.target }) : E.botChooseTrump(r.hands[r.decider], !r.pushed);
-        if (d === "push") push(game); else choose(game, d);
-      }, sp.bot * 1.4);
-    } else if (r.phase === "play" && r.turn !== 0) {
-      timer = setTimeout(() => {
-        const m = E.multiplier(r.trump, game.mult);
-        const st = [0, 0]; if (r.stoeck != null && r.stoeckDone) st[E.team(r.stoeck)] = 20;
-        const wp = r.trickNo >= 1 && r.weis ? r.weis.pts : [0, 0];
-        const endgame = { run: [0, 1].map((i) => game.scores[i] + (st[i] + wp[i] + r.trickPts[i]) * m), mult: m, target: game.target };
-        const ctx = { hand: r.hands[r.turn], trick: r.trick, t: r.trump, played: r.played, p: r.turn, declarer: r.chooser, tricks: r.tricksLog, tricksWon: r.tricks, weis: r.weis, endgame };
-        // Ältere Spielstände ohne Stichverlauf: Heuristik verwenden
-        const c = settings.level !== "normal" && r.tricksLog && r.tricksLog.length === r.trickNo ? E.botPlaySmart(ctx) : E.botPlay(ctx);
-        play(game, r.turn, c);
-      }, sp.bot);
-    } else if (r.phase === "trickDone") {
-      timer = setTimeout(() => collect(game), sp.trick);
-    }
+    const delay = r.phase === "trickDone" ? sp.trick : r.phase === "choose" ? sp.bot * 1.4 : sp.bot;
+    const timer = setTimeout(step, delay);
     return () => clearTimeout(timer);
-  }, [game, home]);
+  }, [game, home, manual]);
 
   const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setGame(newGame(settings)); };
   const askNew = () => {
@@ -1501,7 +1507,10 @@ function JassApp() {
   const curHolder = curIdx >= 0 ? r.trick[curIdx].p : null;
 
   const status = (() => {
+    if (manual && r.phase === "choose" && r.decider !== 0) return NAMES[r.decider] + " wählt – auf den Teppich tippen";
     if (r.phase === "choose") return r.decider === 0 ? (r.pushed ? NAMES[2] + " hat geschoben – du wählst" : "Du bestimmst den Trumpf") : NAMES[r.decider] + " überlegt…" + (r.pushed ? " (geschoben)" : "");
+    if (manual && r.phase === "play" && r.turn !== 0) return NAMES[r.turn] + " ist dran – auf den Teppich tippen";
+    if (manual && r.phase === "trickDone") return "Auf den Teppich tippen zum Einsammeln";
     if (r.phase === "play") return myTurn ? (playMode === "swipe" ? "Du bist dran – Karte auf den Tisch wischen" : selected != null && playMode === "confirm" ? "Nochmals tippen zum Spielen" : "Du bist dran") : NAMES[r.turn] + " ist dran";
     if (r.phase === "trickDone") return NAMES[r.trick[winnerIdx].p] + " sticht";
     return "";
@@ -1589,7 +1598,7 @@ function JassApp() {
       </div>
 
       {/* Tisch */}
-      <div onClick={() => r.phase === "trickDone" && collect(game)} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
+      <div onClick={() => { if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone") collect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
         <Seat p={2} style={{ top: 10, left: "50%", transform: "translateX(-50%)" }} />
         <div style={{ position: "absolute", top: 10, right: 8, zIndex: 5, zoom: uiK }} onClick={(ev) => ev.stopPropagation()}>
           <TafelBadge onClick={() => setModal("tafel")} />
