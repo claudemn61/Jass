@@ -4,9 +4,17 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.1";
+const APP_VERSION = "1.2.2";
 
 const CHANGELOG = [
+  {
+    version: "1.2.2",
+    changes: [
+      "Spielfeld mit echtem Filz-Foto, Jasstafel und Schiefer-Seiten mit echtem Schiefer-Foto",
+      "Z-Linie auf der Jasstafel dünner und in Rot",
+      "Eigene Farbsymbole mit leicht abgerundeten Ecken",
+    ],
+  },
   {
     version: "1.2.1",
     changes: [
@@ -232,7 +240,7 @@ function describeWeis(w, deck) {
 function SuitIcon({ s, deck, size }) {
   const ctx = useContext(CardImgCtx);
   const own = ctx.on && ctx.map["icon:" + deck + ":" + s];
-  if (own) return <img src={own} alt="" draggable={false} style={{ width: size, height: size, objectFit: "contain", display: "block" }} />;
+  if (own) return <img src={own} alt="" draggable={false} style={{ width: size, height: size, objectFit: "cover", display: "block", borderRadius: size * 0.18 }} />;
   if (deck === "fr") {
     const sym = ["♦", "♥", "♠", "♣"][s];
     return <span style={{ fontSize: size, lineHeight: 1, color: s < 2 ? C.red : "#111", fontFamily: "Georgia, serif" }}>{sym}</span>;
@@ -277,7 +285,7 @@ function ModeIcon({ t, deck, size }) {
   const ctx = useContext(CardImgCtx);
   if (t < 4) return <SuitIcon s={t} deck={deck} size={size} />;
   const own = ctx.on && ctx.map[t === 4 ? "icon:obe" : "icon:unde"];
-  if (own) return <img src={own} alt="" draggable={false} style={{ width: size, height: size, objectFit: "contain", display: "block" }} />;
+  if (own) return <img src={own} alt="" draggable={false} style={{ width: size, height: size, objectFit: "cover", display: "block", borderRadius: size * 0.18 }} />;
   return <span style={{ fontSize: size * 0.8, fontWeight: 800, color: C.gold, lineHeight: 1 }}>{t === 4 ? "▲" : "▼"}</span>;
 }
 
@@ -726,13 +734,6 @@ function TafelBadge({ onClick, scores }) {
 // Hintergrund Startbildschirm: alte, verwitterte Schiefer-Jasstafel
 function StartSlate() {
   const rnd = (i) => { const x = Math.sin(i * 91.17) * 43758.5453; return x - Math.floor(x); };
-  const kratzer = Array.from({ length: 38 }, (_, i) => {
-    const x = 40 + rnd(i) * 320, y = 40 + rnd(i + 50) * 720, l = 8 + rnd(i + 99) * 40, a = (rnd(i + 7) - 0.5) * 2.4;
-    return <path key={i} d={"M" + x + " " + y + " l" + l * Math.cos(a) + " " + l * Math.sin(a)} stroke="rgba(255,255,255,0.10)" strokeWidth={0.6 + rnd(i + 3)} />;
-  });
-  const flecken = Array.from({ length: 9 }, (_, i) => (
-    <ellipse key={i} cx={40 + rnd(i + 200) * 320} cy={60 + rnd(i + 300) * 680} rx={30 + rnd(i + 400) * 90} ry={10 + rnd(i + 500) * 30} transform={"rotate(" + (rnd(i + 600) * 40 - 20) + ")"} fill={"rgba(255,255,255," + (0.025 + rnd(i + 700) * 0.04) + ")"} />
-  ));
   // Holzschäden am Rahmen
   const macken = Array.from({ length: 14 }, (_, i) => {
     const side = i % 4, t = rnd(i + 800);
@@ -772,13 +773,10 @@ function StartSlate() {
       <rect width="400" height="800" fill="url(#holz)" />
       <rect width="400" height="800" filter="url(#holzmaser)" />
       {macken}
-      <rect x="20" y="20" width="360" height="760" rx="4" fill="url(#schieferAlt)" />
-      <rect x="20" y="20" width="360" height="760" rx="4" filter="url(#schieferKorn)" />
-      <rect x="20" y="20" width="360" height="760" rx="4" filter="url(#verwittert)" />
-      {flecken}
+      <rect x="20" y="20" width="360" height="760" rx="4" fill="#2a2d33" />
+      <image href="schiefer.jpg" x="20" y="20" width="360" height="760" preserveAspectRatio="xMidYMid slice" />
       {geist(70, 1)}
       {geist(480, 2)}
-      {kratzer}
       <rect x="20" y="20" width="360" height="760" rx="4" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="6" />
       <rect x="17" y="17" width="366" height="766" rx="5" fill="none" stroke="rgba(255,220,170,0.12)" strokeWidth="1.5" />
     </svg>
@@ -787,46 +785,12 @@ function StartSlate() {
 
 // Spielteppich: grüner Filz, abgegriffen (hellere, abgewetzte Stellen dort,
 // wo Karten gespielt und Stiche eingezogen werden), Flecken, dunkle Ränder.
+// Spielteppich: Foto eines echten Jassteppichs (filz.jpg), mit leichter
+// Abdunkelung zum Rand hin.
 function FeltBackground() {
-  const rnd = (i) => { const x = Math.sin(i * 57.31) * 43758.5453; return x - Math.floor(x); };
-  const flecken = Array.from({ length: 7 }, (_, i) => (
-    <ellipse key={i} cx={30 + rnd(i) * 340} cy={80 + rnd(i + 20) * 640} rx={6 + rnd(i + 40) * 16} ry={4 + rnd(i + 60) * 10}
-      fill={i % 3 === 0 ? "rgba(255,255,230,0.035)" : "rgba(0,0,0,0.10)"} />
-  ));
-  const fusseln = Array.from({ length: 30 }, (_, i) => {
-    const x = rnd(i + 100) * 400, y = rnd(i + 200) * 800, a = rnd(i + 300) * 6.28, l = 3 + rnd(i + 400) * 6;
-    return <path key={i} d={"M" + x + " " + y + " q" + l * Math.cos(a) + " " + l * Math.sin(a) + " " + l * 1.6 * Math.cos(a + 0.6) + " " + l * 1.6 * Math.sin(a + 0.6)} stroke="rgba(230,240,220,0.10)" strokeWidth="0.6" fill="none" />;
-  });
   return (
-    <svg viewBox="0 0 400 800" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: -1, pointerEvents: "none" }}>
-      <defs>
-        <radialGradient id="filz" cx="50%" cy="45%" r="75%">
-          <stop offset="0%" stopColor="#0f4231" /><stop offset="70%" stopColor="#0b3326" /><stop offset="100%" stopColor="#06201a" />
-        </radialGradient>
-        <filter id="filzfaser">
-          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="5" />
-          <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 1  0 0 0 0 0.85  0 0 0 0.08 0" />
-        </filter>
-        <filter id="filzwolken">
-          <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="9" />
-          <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.10 0" />
-        </filter>
-        <radialGradient id="abgewetzt">
-          <stop offset="0%" stopColor="rgba(190,215,170,0.06)" /><stop offset="60%" stopColor="rgba(190,215,170,0.025)" /><stop offset="100%" stopColor="rgba(190,215,170,0)" />
-        </radialGradient>
-      </defs>
-      <rect width="400" height="800" fill="url(#filz)" />
-      <rect width="400" height="800" filter="url(#filzwolken)" />
-      {/* abgewetzte Stellen: Tischmitte und vor jedem Spieler */}
-      <ellipse cx="200" cy="400" rx="150" ry="170" fill="url(#abgewetzt)" />
-      <ellipse cx="200" cy="740" rx="170" ry="70" fill="url(#abgewetzt)" />
-      <ellipse cx="200" cy="90" rx="110" ry="60" fill="url(#abgewetzt)" />
-      <ellipse cx="25" cy="400" rx="60" ry="120" fill="url(#abgewetzt)" />
-      <ellipse cx="375" cy="400" rx="60" ry="120" fill="url(#abgewetzt)" />
-      {flecken}
-      {fusseln}
-      <rect width="400" height="800" filter="url(#filzfaser)" />
-    </svg>
+    <div style={{ position: "absolute", inset: 0, zIndex: -1, pointerEvents: "none",
+      background: "radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.45) 100%), linear-gradient(rgba(0,0,0,0.18), rgba(0,0,0,0.18)), url(filz.jpg) center / cover" }} />
   );
 }
 
@@ -1184,17 +1148,18 @@ function RulesModal({ onClose, deck }) {
 // unteren Linie; der Rest unter 20 wird als Zahl nachgeführt (ab 20 → Strich).
 // Rückseite: Striche über mehrere Partien (Match 1, Sieg 2, Berg 1).
 const CHALK = "rgba(240,240,232,0.92)";
+const CHALK_ROT = "rgba(222,78,64,0.92)";
 const CHALK_FONT = "'Chalkboard SE', 'Chalkboard', 'Comic Sans MS', 'Segoe Print', cursive";
 
 // Reproduzierbares «Zittern» der Kreide
 function jit(seed) { const x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x) - 0.5; }
-function ChalkLine({ x1, y1, x2, y2, seed, w }) {
+function ChalkLine({ x1, y1, x2, y2, seed, w, color }) {
   const j = (k) => jit(seed * 7 + k) * 1.6;
   const mx = (x1 + x2) / 2 + j(5), my = (y1 + y2) / 2 + j(6);
   const d = "M" + (x1 + j(1)) + " " + (y1 + j(2)) + " Q" + mx + " " + my + " " + (x2 + j(3)) + " " + (y2 + j(4));
   return (
     <g>
-      <path d={d} stroke={CHALK} strokeWidth={w || 2.2} fill="none" strokeLinecap="round" filter="url(#kreide)" />
+      <path d={d} stroke={color || CHALK} strokeWidth={w || 2.2} fill="none" strokeLinecap="round" filter="url(#kreide)" />
       <path d={d} stroke="rgba(255,255,255,0.25)" strokeWidth={(w || 2.2) * 2} fill="none" strokeLinecap="round" />
     </g>
   );
@@ -1269,11 +1234,9 @@ function Slate({ w, h, children, pad }) {
     <div style={{ padding: pad != null ? pad : 12, borderRadius: pad != null ? pad * 0.8 : 10, background: "linear-gradient(135deg, #a8743f, #7a4b22 45%, #a8743f 70%, #6b3f1b)", boxShadow: "0 8px 24px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(0,0,0,0.25)" }}>
       <svg viewBox={"0 0 " + w + " " + h} style={{ width: "100%", display: "block", borderRadius: 3, boxShadow: "inset 0 0 12px rgba(0,0,0,0.8)" }}>
         <SlateDefs />
-        <rect width={w} height={h} fill="url(#schieferGrund)" />
-        <rect width={w} height={h} filter="url(#schiefer)" />
-        {/* Reste weggewischter Kreide */}
-        <ellipse cx={w * 0.7} cy={h * 0.3} rx={w * 0.25} ry={h * 0.05} fill="rgba(255,255,255,0.035)" />
-        <ellipse cx={w * 0.3} cy={h * 0.75} rx={w * 0.3} ry={h * 0.06} fill="rgba(255,255,255,0.03)" />
+        {/* Foto einer echten Schiefertafel */}
+        <rect width={w} height={h} fill="#2a2d33" />
+        <image href="schiefer.jpg" x="0" y="0" width={w} height={h} preserveAspectRatio="xMidYMid slice" />
         {children}
       </svg>
     </div>
@@ -1317,9 +1280,10 @@ function TafelVorderseite({ game, pad }) {
     const ux = dx / dl, uy = dy / dl;
     return (
       <g key={team}>
-        <ChalkLine x1={L} y1={T} x2={R} y2={T} seed={team * 100 + 1} w={2.6} />
-        <ChalkLine x1={R} y1={T} x2={L} y2={B} seed={team * 100 + 2} w={2.6} />
-        <ChalkLine x1={L} y1={B} x2={R} y2={B} seed={team * 100 + 3} w={2.6} />
+        {/* Z in roter Kreide, etwas dünner */}
+        <ChalkLine x1={L} y1={T} x2={R} y2={T} seed={team * 100 + 1} w={1.6} color={CHALK_ROT} />
+        <ChalkLine x1={R} y1={T} x2={L} y2={B} seed={team * 100 + 2} w={1.6} color={CHALK_ROT} />
+        <ChalkLine x1={L} y1={B} x2={R} y2={B} seed={team * 100 + 3} w={1.6} color={CHALK_ROT} />
         {/* 100er: Fünferbündel (4 senkrecht + 1 schräg darüber), «V» = 500 in einer Runde */}
         {hundertZeichen(s.hundert, L + 12, T, team)}
         {/* 50er: je zwei Striche über Kreuz (zusammen ein Hunderter) */}
