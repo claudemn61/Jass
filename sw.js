@@ -1,9 +1,9 @@
-// ── Jass Service Worker ─────────────────────────────────────────────────
+// ── Bea’s Jass Service Worker ─────────────────────────────────────────────────
 // "Network-first, Cache-Fallback" wie bei Tauchbuch: online immer die
 // neueste Version, offline die zuletzt geladene aus dem Cache (inkl. der
 // React/Babel-Bibliotheken vom CDN).
 // CACHE_VERSION nur bei neuen/entfernten Dateien erhöhen.
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const CACHE_NAME = `jass-cache-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [

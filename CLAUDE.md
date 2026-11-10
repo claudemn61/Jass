@@ -1,6 +1,6 @@
 # Jass — Projektkontext für Claude Code
 
-Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/Flugbuch.
+Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster wie Tauchbuch/Flugbuch.
 
 ## Sprache & Stil
 - Code-Kommentare, Commit-Messages und Antworten: Deutsch, Schweizer Rechtschreibung ("ss" statt "ß").

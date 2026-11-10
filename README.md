@@ -1,4 +1,4 @@
-# Jass – Schieber
+# Bea’s Jass
 
 Schieber-Jass als PWA: du und dein Partner (Computer) gegen zwei Computer-Gegner.
 
