@@ -10,7 +10,7 @@ const CHANGELOG = [
   {
     version: "1.1.4",
     changes: [
-      "Bei einem Match oder Spielsieg deines Teams rieseln Sternchen über den Bildschirm, dazu «MATCH!» bzw. «GEWONNEN!» in grossen Buchstaben",
+      "Bei einem Match oder Spielsieg deines Teams rieseln Sternchen über den Bildschirm, dazu «MATCH!» bzw. «GEWONNEN!» in grossen Buchstaben; bei den Gegnern eine leise, etwas frustrierte Variante",
     ],
   },
   {
@@ -774,6 +774,30 @@ function FeltBackground() {
 
 // Feier bei Match oder Sieg: Sternchen rieseln von oben, grosses Wort darüber.
 // Liegt über allem, fängt aber keine Berührungen ab.
+// Leise, etwas frustrierte Variante für Match/Sieg der Gegner: wenige graue
+// Tropfen fallen langsam, das Wort ist kleiner, grau und sackt traurig ab.
+function Frustration({ text }) {
+  const drops = React.useMemo(() => Array.from({ length: 22 }, (_, i) => {
+    const r = (k) => { const x = Math.sin((i + 1) * 78.233 * k) * 43758.5453; return x - Math.floor(x); };
+    return { left: 5 + r(1) * 90, delay: r(2) * 2.5, dur: 3 + r(3) * 2, h: 10 + r(4) * 10 };
+  }), []);
+  return (
+    <div data-party="1" style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none", overflow: "hidden", background: "rgba(0,0,0,0.12)" }}>
+      <style>{`
+        @keyframes jassTropfen { 0% { transform: translateY(-5vh); opacity: 0; } 15% { opacity: 0.6; } 85% { opacity: 0.6; } 100% { transform: translateY(105vh); opacity: 0; } }
+        @keyframes jassSeufz { 0% { transform: translate(-50%, -60%) rotate(0deg); opacity: 0; } 20% { transform: translate(-50%, -50%) rotate(0deg); opacity: 0.85; } 70% { transform: translate(-50%, -38%) rotate(5deg); opacity: 0.8; } 100% { transform: translate(-50%, -25%) rotate(8deg); opacity: 0; } }
+      `}</style>
+      {drops.map((d, i) => (
+        <div key={i} style={{ position: "absolute", top: 0, left: d.left + "%", width: 2, height: d.h, borderRadius: 2, background: "rgba(170,185,190,0.7)",
+          animation: "jassTropfen " + d.dur + "s linear " + d.delay + "s both" }} />
+      ))}
+      <div style={{ position: "absolute", left: "50%", top: "45%", whiteSpace: "nowrap", fontWeight: 700, fontStyle: "italic",
+        fontSize: "min(" + Math.floor(80 / text.length) + "vw, 14vh)", color: "#9aa7a4", textShadow: "0 3px 12px rgba(0,0,0,0.6)",
+        animation: "jassSeufz 4.2s ease-in both", fontFamily: "Georgia, serif" }}>{text}</div>
+    </div>
+  );
+}
+
 function Celebration({ text }) {
   const stars = React.useMemo(() => Array.from({ length: 90 }, (_, i) => {
     const r = (k) => { const x = Math.sin((i + 1) * 12.9898 * k) * 43758.5453; return x - Math.floor(x); };
@@ -1372,9 +1396,9 @@ function JassApp() {
   const [drag, setDrag] = useState(null); // Wischen: { c, x0, y0, dx, dy, moved }
   const [party, setParty] = useState(null); // Feier: { text, key }
   const partyTimer = useRef(null);
-  const celebrate = (text) => {
+  const celebrate = (text, sad) => {
     clearTimeout(partyTimer.current);
-    setParty({ text, key: Date.now() });
+    setParty({ text, sad: !!sad, key: Date.now() });
     partyTimer.current = setTimeout(() => setParty(null), 4600);
   };
   const toastTimer = useRef(null);
@@ -1436,7 +1460,9 @@ function JassApp() {
     const res = ng.round.result;
     // Feier für dein Team: Sieg vor Match
     if (ng.over && ng.over.winner === 0) celebrate("GEWONNEN!");
+    else if (ng.over && ng.over.winner === 1) celebrate("verloren …", true);
     else if (res.match === 0) celebrate("MATCH!");
+    else if (res.match === 1) celebrate("Match der Gegner …", true);
     setStats((s) => ({
       ...s, rounds: s.rounds + 1, matches: s.matches + (res.match === 0 ? 1 : 0),
       played: s.played + (ng.over ? 1 : 0), won: s.won + (ng.over && ng.over.winner === 0 ? 1 : 0),
@@ -1782,7 +1808,7 @@ function JassApp() {
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
-      {party && <Celebration key={party.key} text={party.text} />}
+      {party && (party.sad ? <Frustration key={party.key} text={party.text} /> : <Celebration key={party.key} text={party.text} />)}
       {imgModal}
     </div>
   );
