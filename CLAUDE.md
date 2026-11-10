@@ -20,9 +20,12 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   nicht anspielen. Bedanken: Gegner automatisch bei Erreichen der Zielpunkte, für «Wir» per Knopf (falsch bedankt =
   verloren); am Rundenende normale Abrechnung (Stöck – Weis – Stich).
 - Alle Böcke auflegen (`canClaim`, `doClaim` in `jass.jsx`): wer an der Reihe ist und nur noch
-  unschlagbare Böcke hat (gegen die Gegner; Nicht-Trumpf nur ohne Gegner-Trumpf; laufender Stich
-  dem Team sicher), wirft alles hin – alle restlichen Karten (Haufen) gehen an sein Team, +5
-  letzter Stich; ausgelöst in `play()`. Replay zeigt den Haufen (`lastRound.pile`).
+  Karten hat, die kein anderer Spieler (auch der Partner nicht) schlagen kann (Nicht-Trumpf nur,
+  wenn sonst niemand Trumpf hat; einen laufenden Stich gewinnt er selbst sicher), wirft alles hin –
+  der ganze Haufen geht an sein Team, +5 letzter Stich. Replay zeigt die Restrunde einzeln
+  (`simulateRest`). Rundenabrechnung → «Bock-Protokoll» (`buildClaimReport`, `ClaimReportModal`)
+  erklärt jede Karte und macht die Gegenprobe. Härtetest: `node tests/claim.js` (muss 0
+  Unstimmigkeiten melden – bei jeder Änderung an canClaim/simulateRest laufen lassen).
 - Jasstafel (`TafelModal`): Schiefer-Optik als SVG. Vorderseite Z, pro Runde ergänzt (nie ausradiert): 100er in Fünferbündeln (V nur bei 500
   in einer Runde), 50er je zwei über Kreuz, 20er in Fünferbündeln; nur Einer (als Zahl) werden angepasst
   (ab 11 → 20er-Strich + Minus-Einer, z.B. 9 + 8 = 20er und −3). Rückseite Striche über alle Spiele; bei Spielabbruch werden die Striche dieses Spiels

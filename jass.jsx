@@ -215,15 +215,18 @@ function finishRound(g, rUpd, res, winner, extra) {
 
 // Kann Spieler p (an der Reihe) alle Karten auflegen, weil ihm alle
 // restlichen Stiche sicher sind? (mind. 2 Karten)
-// - jede Karte ist ein Bock gegen die Gegner: kein Gegner hat eine höhere
-//   Karte dieser Farbe; Nicht-Trumpf nur, wenn kein Gegner mehr Trumpf hat
-// - läuft schon ein Stich, muss ihn sein Team sicher gewinnen: er hat eine
-//   erlaubte Karte, die den Stich übernimmt (oder der Partner führt), und kein
-//   Gegner, der noch dran kommt, kann das übertreffen.
+// - jede Karte ist ein Bock gegen ALLE anderen drei Spieler (auch den Partner):
+//   niemand hat eine höhere Karte dieser Farbe; Nicht-Trumpf nur, wenn sonst
+//   niemand mehr Trumpf hat. So gehören ihm alle restlichen Stiche selbst.
+// - läuft schon ein Stich, muss er ihn SELBST sicher gewinnen (eine erlaubte
+//   Karte von ihm übernimmt den Stich, und kein Gegner, der noch dran kommt,
+//   kann das übertreffen). Nur dann spielt er danach aus und führt alle
+//   weiteren Stiche an – gewinnt der Partner, würde dieser ausspielen und seine
+//   Karten sind keine sicheren Böcke.
 function canClaim(r, p) {
   const t = r.trump, hand = r.hands[p];
   if (t == null || r.turn !== p || hand.length < 2) return false;
-  const oppSeats = [1, 3].map((k) => (p + k) % 4);
+  const oppSeats = [1, 2, 3].map((k) => (p + k) % 4);
   const opp = oppSeats.flatMap((q) => r.hands[q]);
   const oppTrump = t < 4 && opp.some((c) => E.isTrump(c, t));
   const st = (x) => (t === E.UNDE ? 8 - E.rankOf(x) : E.rankOf(x));
@@ -240,10 +243,10 @@ function canClaim(r, p) {
   const best = legal.slice().sort((x, y) => E.power(y, led, t) - E.power(x, led, t))[0];
   const tr = r.trick.concat([{ p, c: best }]);
   const w = tr[E.trickWinnerIdx(tr, t)];
-  if (E.team(w.p) !== E.team(p)) return false;
+  if (w.p !== p) return false;
   const wPow = E.power(w.c, led, t);
   // Gegner, die in diesem Stich noch spielen, dürfen nicht übertreffen können
-  const still = [1, 2, 3].map((k) => (p + k) % 4).filter((q) => !r.trick.some((e) => e.p === q) && E.team(q) !== E.team(p));
+  const still = [1, 2, 3].map((k) => (p + k) % 4).filter((q) => !r.trick.some((e) => e.p === q));
   return still.every((q) => !E.legalCards(r.hands[q], tr, t).some((c) => E.power(c, led, t) > wPow));
 }
 
@@ -278,6 +281,60 @@ function simulateRest(r, p) {
   return out;
 }
 
+// Bock-Protokoll: erklärt Schritt für Schritt, warum aufgelegt werden durfte,
+// wie der Haufen gewertet wurde, und prüft das Ergebnis gegen ein einzelnes
+// Durchspielen der restlichen Stiche (Gegenprobe). `r` = Runde VOR dem Auflegen.
+function buildClaimReport(r, p, replayTricks) {
+  const t = r.trump, team = E.team(p), hand = r.hands[p];
+  const oppSeats = [1, 2, 3].map((k) => (p + k) % 4);
+  const opp = oppSeats.flatMap((q) => r.hands[q].map((c) => ({ q, c })));
+  const oppTrump = t < 4 ? opp.filter((o) => E.isTrump(o.c, t)) : [];
+  const st = (x) => (t === E.UNDE ? 8 - E.rankOf(x) : E.rankOf(x));
+  const cardChecks = hand.map((c) => {
+    if (E.isTrump(c, t)) {
+      const higher = opp.filter((o) => E.isTrump(o.c, t) && E.TRUMP_STR[E.rankOf(o.c)] > E.TRUMP_STR[E.rankOf(c)]);
+      return { c, ok: !higher.length, kind: "Trumpf", higher };
+    }
+    const higher = opp.filter((o) => E.suitOf(o.c) === E.suitOf(c) && st(o.c) > st(c));
+    const stechen = oppTrump.length > 0;
+    return { c, ok: !higher.length && !stechen, kind: "Farbe", higher, stechen };
+  });
+  // laufender Stich
+  let trickInfo = null;
+  if (r.trick.length) {
+    const led = E.suitOf(r.trick[0].c);
+    const legal = E.legalCards(hand, r.trick, t);
+    const best = legal.slice().sort((x, y) => E.power(y, led, t) - E.power(x, led, t))[0];
+    const tr = r.trick.concat([{ p, c: best }]);
+    const w = tr[E.trickWinnerIdx(tr, t)];
+    const wPow = E.power(w.c, led, t);
+    const still = [1, 2, 3].map((k) => (p + k) % 4).filter((q) => !r.trick.some((e) => e.p === q));
+    const beaters = still.flatMap((q) => E.legalCards(r.hands[q], tr, t).filter((c) => E.power(c, led, t) > wPow).map((c) => ({ q, c })));
+    trickInfo = { cards: r.trick, best, winner: w.p, teamWins: w.p === p, beaters };
+  }
+  // Haufen und Punkte
+  const pile = r.trick.slice();
+  [0, 1, 2, 3].map((k) => (p + k) % 4).forEach((q) => r.hands[q].forEach((c) => pile.push({ p: q, c })));
+  const pilePts = pile.reduce((s, e) => s + E.points(e.c, t), 0);
+  const remaining = 9 - r.trickNo;
+  // Gegenprobe: restliche Stiche einzeln gespielt
+  const sim = replayTricks || [];
+  const simTeam = [0, 0], simPts = [0, 0];
+  sim.forEach((tr, k) => {
+    const w = tr[E.trickWinnerIdx(tr, t)].p;
+    simTeam[E.team(w)]++;
+    simPts[E.team(w)] += tr.reduce((s, e) => s + E.points(e.c, t), 0) + (r.trickNo + k === 8 ? 5 : 0);
+  });
+  return {
+    p, team, trump: t, trickNo: r.trickNo, remaining, cardChecks, oppTrumpN: oppTrump.length, trickInfo,
+    pile, pilePts, lastBonus: 5, simTricks: sim, simTeam, simPts,
+    allOk: cardChecks.every((x) => x.ok) && (!trickInfo || (trickInfo.teamWins && !trickInfo.beaters.length)),
+    claimTeamTricks: remaining, claimPts: pilePts + 5,
+    match: r.tricks[team] + remaining === 9,
+    matchSim: r.tricks[team] + simTeam[team] === 9,
+  };
+}
+
 // Alle Karten auflegen: alle Spieler werfen ihre restlichen Karten auf einmal
 // aufs Feld, der ganze Haufen (inkl. laufendem Stich, + 5 für den letzten
 // Stich) geht an das Team von p. Danach normale Abrechnung (inkl. Match).
@@ -292,7 +349,8 @@ function doClaim(g, p) {
   const played = r.played.concat(pile.map((e) => e.c));
   const hands = r.hands.map(() => []);
   const stoeckDone = r.stoeck != null ? true : r.stoeckDone;
-  const upd = { hands, trick: [], trickPts, tricks, played, stoeckDone, trickNo: 9, lastTrick: { cards: pile, winner: p, pts }, pile: { p, cards: pile, nTrick: r.trick.length }, replayTricks: simulateRest(r, p) };
+  const replayTricks = simulateRest(r, p);
+  const upd = { hands, trick: [], trickPts, tricks, played, stoeckDone, trickNo: 9, lastTrick: { cards: pile, winner: p, pts }, pile: { p, cards: pile, nTrick: r.trick.length }, replayTricks, claimReport: buildClaimReport(r, p, replayTricks) };
   const res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
   const ap = E.applyScore(g.scores, res, g.target);
   return finishRound(g, upd, res, ap.winner, {});
@@ -1336,7 +1394,7 @@ function RulesModal({ onClose, deck }) {
       {h("Eigene Bilder")}
       {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben nur auf diesem Gerät gespeichert.")}
       {h("Alle Böcke auflegen")}
-      {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (kein Gegner hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat kein Gegner mehr Trumpf, und ein laufender Stich ist seinem Team sicher), wirft er alle Karten auf einmal aufs Feld. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Bei dir geschieht das automatisch, sobald du in dieser Lage eine Karte spielst.")}
+      {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (keiner der anderen drei Spieler hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat sonst niemand mehr Trumpf, und einen laufenden Stich gewinnt er selbst sicher, sodass er danach ausspielt; ihm gehören also alle restlichen Stiche), wirft er alle Karten auf einmal aufs Feld. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Bei dir geschieht das automatisch, sobald du in dieser Lage eine Karte spielst.")}
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
@@ -1651,7 +1709,65 @@ function InfoModal({ stats, onClose }) {
   );
 }
 
-function RoundEndModal({ game, deck, onNext, onTafel, onClose }) {
+function ClaimReportModal({ rep, deck, onClose }) {
+  const t = rep.trump;
+  const cards = (arr, w) => (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", margin: "4px 0" }}>
+      {arr.map((x, i) => <div key={i} style={{ textAlign: "center" }}><Card id={x.c} deck={deck} w={w || 34} trump={E.isTrump(x.c, t)} />{x.q != null && <div style={{ fontSize: 10, color: C.dim }}>{NAMES[x.q]}</div>}</div>)}
+    </div>
+  );
+  const head = (txt) => <div style={{ fontWeight: 800, color: C.gold, margin: "14px 0 4px", fontSize: 14 }}>{txt}</div>;
+  const txt = (v) => <div style={{ fontSize: 13, lineHeight: 1.5, color: C.text }}>{v}</div>;
+  const ok = (b) => <b style={{ color: b ? "#4ade80" : "#f87171" }}>{b ? "✓" : "✗"}</b>;
+  const who = NAMES[rep.p];
+  return (
+    <Modal title="Bock-Protokoll" onClose={onClose} wide>
+      {txt(<>{who} hat {rep.trickNo === 0 ? "vor dem ersten Stich" : "nach " + rep.trickNo + " Stichen"} alle restlichen Karten aufgelegt ({rep.remaining} Stiche offen).</>)}
+      {head("1. Seine Karten – alles Böcke?")}
+      {txt("Eine Karte ist ein Bock, wenn keine Karte eines anderen Spielers (auch nicht des Partners) sie schlagen kann – nur dann gehören ihm alle restlichen Stiche selbst.")}
+      {rep.cardChecks.map((x, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "6px 0", padding: "6px 0", borderTop: "1px solid " + C.line }}>
+          <Card id={x.c} deck={deck} w={34} trump={E.isTrump(x.c, t)} />
+          <div style={{ fontSize: 12, lineHeight: 1.45 }}>
+            {ok(x.ok)} {x.kind === "Trumpf" ? "Trumpfkarte" : "Karte"}:{" "}
+            {x.higher.length === 0
+              ? (x.kind === "Trumpf" ? "kein anderer Spieler hat einen höheren Trumpf." : "kein anderer Spieler hat eine höhere Karte dieser Farbe" + (t < 4 ? ", und " + (rep.oppTrumpN ? "jemand hat noch Trumpf und könnte stechen." : "niemand hat noch Trumpf (keiner kann stechen).") : "."))
+              : "höher beim Gegner:"}
+            {x.higher.length > 0 && cards(x.higher.map((o) => ({ c: o.c, q: o.q })), 26)}
+            {x.higher.length === 0 && x.kind === "Farbe" && x.stechen && <> <b style={{ color: "#f87171" }}>Trumpf bei anderen vorhanden → nicht sicher.</b></>}
+          </div>
+        </div>
+      ))}
+      {rep.trickInfo && <>
+        {head("2. Der laufende Stich")}
+        {cards(rep.trickInfo.cards.map((e) => ({ c: e.c, q: e.p })))}
+        {txt(<>{ok(rep.trickInfo.teamWins && !rep.trickInfo.beaters.length)} Mit seiner besten Karte gewinnt {NAMES[rep.trickInfo.winner]} den Stich{rep.trickInfo.teamWins ? " – er selbst, also spielt er danach aus und führt alle weiteren Stiche an" : " – nicht er selbst, also würde ein anderer ausspielen (nicht sicher!)"}
+          {rep.trickInfo.beaters.length ? "; übertreffen könnten:" : rep.trickInfo.teamWins ? "; kein Spieler, der noch spielt, kann ihn übertreffen." : "."}</>)}
+        {rep.trickInfo.beaters.length > 0 && cards(rep.trickInfo.beaters.map((o) => ({ c: o.c, q: o.q })), 26)}
+      </>}
+      {head((rep.trickInfo ? "3" : "2") + ". Der Haufen")}
+      {txt(<>Alle Karten aller Spieler ({rep.pile.length}) gehen an {TEAM[rep.team]}. Kartenpunkte {rep.pilePts} + 5 für den letzten Stich = <b>{rep.claimPts}</b>; {rep.claimTeamTricks} Stiche für das Team.{rep.match ? " → Match (alle 9 Stiche)!" : ""}</>)}
+      {head((rep.trickInfo ? "4" : "3") + ". Gegenprobe: einzeln durchgespielt")}
+      {txt("Die restlichen Stiche wurden zusätzlich regelkonform einzeln gespielt (er legt seine stärksten Karten zuerst, die anderen geben nach den Regeln zu):")}
+      {rep.simTricks.map((tr, k) => {
+        const w = tr[E.trickWinnerIdx(tr, t)].p;
+        return (
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, margin: "3px 0", fontSize: 12 }}>
+            <div style={{ width: 54, color: C.dim }}>Stich {rep.trickNo + k + 1}</div>
+            <div style={{ display: "flex", gap: 2 }}>{tr.map((e, i) => <Card key={i} id={e.c} deck={deck} w={24} trump={E.isTrump(e.c, t)} />)}</div>
+            <div style={{ color: E.team(w) === rep.team ? "#4ade80" : "#f87171" }}>→ {NAMES[w]}</div>
+          </div>
+        );
+      })}
+      {txt(<>Ergebnis einzeln: {rep.simTeam[rep.team]} von {rep.remaining} Stichen, {rep.simPts[rep.team]} Punkte für {TEAM[rep.team]}. Auflegen: {rep.claimTeamTricks} Stiche, {rep.claimPts} Punkte. {ok(rep.simTeam[rep.team] === rep.remaining && rep.simPts[rep.team] === rep.claimPts)} {rep.simTeam[rep.team] === rep.remaining && rep.simPts[rep.team] === rep.claimPts ? "Gleich – das Auflegen war korrekt." : "ABWEICHUNG – bitte melden!"}</>)}
+      <div style={{ marginTop: 14, padding: "8px 10px", borderRadius: 10, background: rep.allOk && rep.simTeam[rep.team] === rep.remaining ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.18)", fontWeight: 700, fontSize: 14 }}>
+        {rep.allOk && rep.simTeam[rep.team] === rep.remaining ? "✓ Alles in Ordnung: alle Karten waren sichere Böcke." : "✗ Unstimmigkeit: das Auflegen war nicht berechtigt – bitte melden."}
+      </div>
+    </Modal>
+  );
+}
+
+function RoundEndModal({ game, deck, onNext, onTafel, onClose, onClaim }) {
   const r = game.round, res = r.result;
   const row = (label, a, b, bold) => (
     <tr style={{ borderTop: "1px solid " + C.line, fontWeight: bold ? 800 : 400 }}>
@@ -1684,6 +1800,11 @@ function RoundEndModal({ game, deck, onNext, onTafel, onClose }) {
         </tbody>
       </table>
       {weisList.length > 0 && <div style={{ fontSize: 12, color: C.dim, marginTop: 8 }}>{weisList.join(" · ")}</div>}
+      {r.claimReport && (
+        <button onClick={onClaim} style={{ ...btn(false), width: "100%", marginTop: 10, padding: "9px", fontSize: 14 }}>
+          ⚖ Bock-Protokoll: {NAMES[r.claimReport.p]} hat alle Böcke aufgelegt – warum das stimmt
+        </button>
+      )}
       {/* Miniatur der Jasstafel, öffnet die grosse Tafel */}
       <div onClick={onTafel} style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, cursor: "pointer" }}>
         <div style={{ width: 92, flexShrink: 0 }}><TafelVorderseite game={game} pad={5} /></div>
@@ -2219,13 +2340,14 @@ function JassApp() {
         ]} />
       )}
       {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
-      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} />}
+      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
           <button onClick={() => setEndHidden(false)} style={{ ...btn(false), background: "rgba(10,30,22,0.92)" }}>Abrechnung</button>
           <button onClick={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} style={btn(true)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
         </div>
       )}
+      {modal === "claim" && r.claimReport && <ClaimReportModal rep={r.claimReport} deck={deck} onClose={() => setModal(null)} />}
       {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
         onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
