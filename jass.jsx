@@ -1750,6 +1750,8 @@ function JassApp() {
   const uiK = big ? Math.min(1.5, cw / 78) : 1;
   const step = hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
   const handW = cw + step * Math.max(0, hand.length - 1);
+  // Trumpfwahl: Breite eines der 7 Knöpfe (Zeile max. 560/760 px, 10 px Rand, 6 px Abstand)
+  const chooseIcon = Math.round(((Math.min(vw, big ? 760 : 560) - 20 - 6 * 6) / 7) * 0.82);
   const tw = Math.round(cw * (big && vw > vh ? 0.72 : 0.92)), th = Math.round(tw * 1.5); // iPad quer: Stichkarten kleiner, damit sie nicht an die Plätze stossen
 
   const playMode = settings.playMode || (settings.oneTap ? "tap" : "confirm");
@@ -1965,18 +1967,19 @@ function JassApp() {
         <div style={{ maxWidth: big ? 760 : 560, width: "100%", margin: "0 auto", padding: "0 10px 8px", boxSizing: "border-box" }}>
           {/* Hinweis über den Knöpfen */}
           <div style={{ textAlign: "center", fontSize: 13 * uiK, color: C.gold, fontWeight: 700, marginBottom: 6 }}>{status}</div>
-          {/* 7 quadratische Knöpfe über die ganze Breite: 6 Trumpfarten + Schieben */}
+          {/* 7 quadratische Knöpfe über die ganze Breite: 6 Trumpfarten + Schieben;
+              die Symbole füllen den Knopf (Knopfbreite aus der Zeilenbreite berechnet) */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
             {[3, 1, 0, 2, 4, 5].map((t) => (
               <button key={t} onClick={() => choose(game, t)} title={modeName(t, deck) + " ×" + E.multiplier(t, game.mult)} aria-label={modeName(t, deck)}
                 style={{ ...btn(false), padding: 0, aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <ModeIcon t={t} deck={deck} size={Math.round(30 * uiK)} />
+                <ModeIcon t={t} deck={deck} size={chooseIcon} />
               </button>
             ))}
             <button onClick={() => !r.pushed && push(game)} disabled={r.pushed} title="Schieben" aria-label="Schieben"
               style={{ ...btn(true), padding: 0, aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", opacity: r.pushed ? 0.3 : 1 }}>
               {/* Pfeil zum Partner (oben) */}
-              <svg viewBox="0 0 40 40" width={Math.round(30 * uiK)} height={Math.round(30 * uiK)}>
+              <svg viewBox="0 0 40 40" width={chooseIcon} height={chooseIcon}>
                 <path d="M10 32 Q10 14 26 12" stroke="#1a1200" strokeWidth="4" fill="none" strokeLinecap="round" />
                 <path d="M21 5 L30 12 L21 19" stroke="#1a1200" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
