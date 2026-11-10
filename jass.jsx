@@ -1957,11 +1957,11 @@ function JassApp() {
       {/* Trumpfwahl */}
       {r.phase === "choose" && r.decider === 0 && (
         <div style={{ maxWidth: big ? 760 : 560, width: "100%", margin: "0 auto", padding: "0 10px 8px", boxSizing: "border-box" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
             {[3, 1, 0, 2, 4, 5].map((t) => (
-              <button key={t} onClick={() => choose(game, t)} style={{ ...btn(false), padding: "8px 4px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 14 }}>
-                <ModeIcon t={t} deck={deck} size={20} />{modeName(t, deck)}
-                <span style={{ color: C.dim, fontSize: 11 }}>×{E.multiplier(t, game.mult)}</span>
+              <button key={t} onClick={() => choose(game, t)} title={modeName(t, deck) + " ×" + E.multiplier(t, game.mult)} aria-label={modeName(t, deck)}
+                style={{ ...btn(false), padding: "10px 0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ModeIcon t={t} deck={deck} size={Math.round(30 * uiK)} />
               </button>
             ))}
           </div>
