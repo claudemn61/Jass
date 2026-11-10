@@ -292,7 +292,7 @@ function doClaim(g, p) {
   const played = r.played.concat(pile.map((e) => e.c));
   const hands = r.hands.map(() => []);
   const stoeckDone = r.stoeck != null ? true : r.stoeckDone;
-  const upd = { hands, trick: [], trickPts, tricks, played, stoeckDone, trickNo: 9, lastTrick: { cards: pile, winner: p, pts }, pile: { p, cards: pile }, replayTricks: simulateRest(r, p) };
+  const upd = { hands, trick: [], trickPts, tricks, played, stoeckDone, trickNo: 9, lastTrick: { cards: pile, winner: p, pts }, pile: { p, cards: pile, nTrick: r.trick.length }, replayTricks: simulateRest(r, p) };
   const res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
   const ap = E.applyScore(g.scores, res, g.target);
   return finishRound(g, upd, res, ap.winner, {});
@@ -1031,45 +1031,70 @@ function ReplayView({ rec, deck, speed, onClose }) {
   );
 }
 
-// Böcke auflegen als kleine Filmszene: die Karten fliegen von den Plätzen
-// nacheinander in die Tischmitte (ca. 1,5 s), bleiben kurz liegen und werden
-// dann zum Team des Gewinners gezogen. Web Animations API, keine Bibliothek.
-function ClaimAnim({ pile, p, deck, trump, w }) {
+// Böcke auflegen als kleine Filmszene (zusammen unter 3 s):
+// 1. Die Bock-Karten des Spielers liegen nebeneinander in der Tischmitte,
+//    Unterschrift «nur noch Böcke».
+// 2. Dann fliegen alle restlichen Karten aller Spieler direkt auf den Haufen
+//    des Gewinners. Web Animations API, keine Bibliothek.
+function ClaimAnim({ pile, p, nTrick, deck, trump, w }) {
   const refs = useRef([]);
+  const capRef = useRef(null);
   const vw = window.innerWidth, vh = window.innerHeight;
   const from = { 0: [0, vh * 0.42], 1: [vw * 0.46, 0], 2: [0, -vh * 0.36], 3: [-vw * 0.46, 0] };
-  const n = pile.length;
-  const step = Math.min(70, 1100 / Math.max(n, 1)); // Würfe gestaffelt über ≈ 1,1 s
+  const tr = (x, y, rot, sc) => "translate(" + x + "px," + y + "px) rotate(" + (rot || 0) + "deg) scale(" + (sc == null ? 1 : sc) + ")";
+  const mineIdx = pile.map((e, i) => (i >= nTrick && e.p === p ? i : -1)).filter((i) => i >= 0);
+  const n = mineIdx.length, gap = 6;
+  const w2 = Math.min(w * 0.95, (vw - 24 - (n - 1) * gap) / Math.max(n, 1));
+  const rowY = vh * 0.08;
+  const rowX = (k) => (k - (n - 1) / 2) * (w2 + gap);
+  const trickT = (q) => {
+    const h = w * 1.5;
+    return tr({ 0: 0, 1: w * 0.78, 2: 0, 3: -w * 0.78 }[q], -vh * 0.06 + { 0: h * 0.42, 1: 0, 2: -h * 0.42, 3: 0 }[q], { 0: 0, 1: -8, 2: 3, 3: 8 }[q]);
+  };
+  const target = [from[p][0] * 0.9, from[p][1] * 0.9];
+  const T2 = 1750; // Beginn von Phase 2
   useEffect(() => {
     const anims = [];
-    refs.current.forEach((el, i) => {
+    let k = 0;
+    pile.forEach((e, i) => {
+      const el = refs.current[i];
       if (!el) return;
-      const e = pile[i], [fx, fy] = from[e.p];
-      const tx = Math.sin(i * 2.1) * w * 0.55, ty = Math.cos(i * 1.7) * w * 0.4, rot = (i * 47) % 70 - 35;
-      const [gx, gy] = from[p];
-      const a = el.animate([
-        { transform: "translate(" + fx + "px," + fy + "px) rotate(0deg) scale(0.9)", opacity: 0 },
-        { transform: "translate(" + fx * 0.85 + "px," + fy * 0.85 + "px) rotate(" + rot / 3 + "deg) scale(1)", opacity: 1, offset: 0.12 },
-        { transform: "translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(1)", opacity: 1 },
-      ], { duration: 500, delay: i * step, easing: "cubic-bezier(.2,.75,.25,1)", fill: "forwards" });
-      anims.push(a);
-      // nach kurzer Pause: Haufen zum Gewinner ziehen
-      const b = el.animate([
-        { transform: "translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(1)", opacity: 1 },
-        { transform: "translate(" + gx * 0.9 + "px," + gy * 0.9 + "px) rotate(" + rot / 2 + "deg) scale(0.6)", opacity: 0 },
-      ], { duration: 600, delay: 1900 + i * 8, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" });
-      anims.push(b);
+      let startB;
+      if (i < nTrick) startB = trickT(e.p);               // Karten des laufenden Stichs bleiben liegen
+      else if (e.p === p) {                               // Bock-Karten: in die Mitte, nebeneinander
+        const [fx, fy] = from[p];
+        anims.push(el.animate([
+          { transform: tr(fx, fy, 0, 0.9), opacity: 0 },
+          { transform: tr(rowX(k), rowY, 0, 1), opacity: 1 },
+        ], { duration: 450, delay: k * 70, easing: "cubic-bezier(.2,.75,.25,1)", fill: "forwards" }));
+        startB = tr(rowX(k), rowY, 0, 1); k++;
+      } else startB = tr(from[e.p][0], from[e.p][1], 0, 1); // Karten der anderen: noch unsichtbar
+      anims.push(el.animate([
+        { transform: startB, opacity: 1 },
+        { transform: tr(target[0] + i * 1.5, target[1] + i * 1.5, (i * 37) % 30 - 15, 0.5), opacity: 0 },
+      ], { duration: 780, delay: T2 + i * 8, easing: "cubic-bezier(.55,0,.8,.45)", fill: "forwards" }));
     });
+    const cap = capRef.current;
+    if (cap) {
+      anims.push(cap.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 450, fill: "forwards" }));
+      anims.push(cap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, delay: T2 - 100, fill: "forwards" }));
+    }
     return () => anims.forEach((a) => a.cancel());
   }, []);
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 90, pointerEvents: "none" }}>
-      <div style={{ position: "absolute", left: "50%", top: "48%", width: 0, height: 0 }}>
-        {pile.map((e, i) => (
-          <div key={e.c} ref={(el) => (refs.current[i] = el)} style={{ position: "absolute", left: -w / 2, top: -w * 0.75, opacity: 0, zIndex: i }}>
-            <Card id={e.c} deck={deck} w={w} trump={E.isTrump(e.c, trump)} />
-          </div>
-        ))}
+      <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0 }}>
+        {pile.map((e, i) => {
+          const sz = i >= nTrick && e.p === p ? w2 : w;
+          return (
+            <div key={e.c} ref={(el) => (refs.current[i] = el)}
+              style={{ position: "absolute", left: -sz / 2, top: -sz * 0.75, zIndex: i, opacity: i < nTrick ? 1 : 0, transform: i < nTrick ? trickT(e.p) : "none" }}>
+              <Card id={e.c} deck={deck} w={sz} trump={E.isTrump(e.c, trump)} />
+            </div>
+          );
+        })}
+        <div ref={capRef} style={{ position: "absolute", left: 0, top: rowY + w2 * 0.75 + 12, transform: "translateX(-50%)", opacity: 0, whiteSpace: "nowrap",
+          background: "rgba(0,0,0,0.65)", color: "#fff", fontWeight: 700, fontSize: 15, padding: "4px 14px", borderRadius: 14, zIndex: 200 }}>nur noch Böcke</div>
       </div>
     </div>
   );
@@ -1758,8 +1783,8 @@ function JassApp() {
       setSelected(null);
       setGame(ng);
       // Filmszene, Abrechnung (und ggf. Feier) erst danach
-      setClaimAnim({ pile: ng.round.pile.cards, p, key: Date.now() });
-      setTimeout(() => { setClaimAnim(null); record(g, ng); }, 2800); // Abrechnung spätestens nach 3 s
+      setClaimAnim({ pile: ng.round.pile.cards, nTrick: ng.round.pile.nTrick, p, key: Date.now() });
+      setTimeout(() => { setClaimAnim(null); record(g, ng); }, 2900); // Abrechnung spätestens nach 3 s
       return;
     }
     const ng = doPlay(g, p, c);
@@ -2178,7 +2203,7 @@ function JassApp() {
           ["Zum Startbildschirm", () => setHome(true)],
         ]} />
       )}
-      {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
+      {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
       {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
