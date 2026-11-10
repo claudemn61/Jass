@@ -139,7 +139,7 @@ let THANK = "knopf";
 const teamName = (t) => NAMES[t] + " & " + NAMES[t + 2];
 // «Du wählst» vs. «Anna wählt»
 const verb = (p, du, er) => (p === 0 && NAMES[0] === "Du" ? du : er);
-const TEAM = ["Wir", "Ihr"];
+const TEAM = ["Wir", "Gegner"];
 const C = { felt: "#0f3d2e", felt2: "#0a2c21", gold: "#f4c430", text: "#f1f5f1", dim: "rgba(241,245,241,0.6)", panel: "#123f31", line: "rgba(255,255,255,0.12)", red: "#d23b3b" };
 
 const modeName = (t, deck) => (t < 4 ? SUIT_NAMES[deck][t] : t === 4 ? "Obenabe" : "Undenufe");
@@ -1644,7 +1644,7 @@ function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr style={{ color: C.dim, textAlign: "right" }}>
-              <th style={{ textAlign: "left", padding: 4 }}>#</th><th style={{ textAlign: "left", padding: 4 }}>Trumpf</th><th style={{ padding: 4 }}>Wir</th><th style={{ padding: 4 }}>Ihr</th>
+              <th style={{ textAlign: "left", padding: 4 }}>#</th><th style={{ textAlign: "left", padding: 4 }}>Trumpf</th><th style={{ padding: 4 }}>Wir</th><th style={{ padding: 4 }}>Gegner</th>
             </tr>
           </thead>
           <tbody>
@@ -1785,10 +1785,10 @@ function RoundEndModal({ game, deck, onNext, onTafel, onClose, onClaim }) {
       </div>
       {r.bedankt != null && (r.falsch
         ? <div style={{ color: C.red, fontWeight: 800, marginBottom: 8 }}>Falsch bedankt {r.bedankt ? "nach Stich " + r.bedankt : "vor dem ersten Stich"}: Wir hatten erst {game.scores[0]} von {game.target} Punkten – das Spiel geht an die Gegner.</div>
-        : <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>{r.bedanktVon === 0 ? "Wir bedanken uns" : "Ihr bedankt euch"} – Zielpunkte {r.bedankt ? "nach Stich " + r.bedankt : "vor dem ersten Stich"} erreicht.</div>)}
+        : <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>{r.bedanktVon === 0 ? "Wir bedanken uns" : "Die Gegner bedanken sich"} – Zielpunkte {r.bedankt ? "nach Stich " + r.bedankt : "vor dem ersten Stich"} erreicht.</div>)}
       {res.match != null && <div style={{ color: C.gold, fontWeight: 800, marginBottom: 8 }}>Match für {TEAM[res.match]}!</div>}
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-        <thead><tr style={{ color: C.dim }}><th></th><th style={{ textAlign: "right", padding: 4 }}>Wir</th><th style={{ textAlign: "right", padding: 4 }}>Ihr</th></tr></thead>
+        <thead><tr style={{ color: C.dim }}><th></th><th style={{ textAlign: "right", padding: 4 }}>Wir</th><th style={{ textAlign: "right", padding: 4 }}>Gegner</th></tr></thead>
         <tbody>
           {row("Stiche (" + r.tricks[0] + ":" + r.tricks[1] + ")", res.trick[0], res.trick[1])}
           {row("Weis", res.weis[0], res.weis[1])}
@@ -2213,7 +2213,7 @@ function JassApp() {
             {/* ab 1500 Punkten zusätzlich: wie viel fehlt bis zum Ziel */}
             {[0, 1].map((t) => (
               <div key={t}>
-                <span style={{ fontSize: 11, color: C.dim }}>{t === 0 ? "Wir " : "Ihr "}</span>
+                <span style={{ fontSize: 11, color: C.dim }}>{t === 0 ? "Wir " : "Gegner "}</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{game.scores[t]}</span>
                 {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim, marginLeft: 2 }}>−{game.target - game.scores[t]}</span>}
               </div>
