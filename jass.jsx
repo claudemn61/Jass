@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.1.3";
+const APP_VERSION = "1.1.4";
 
 const CHANGELOG = [
+  {
+    version: "1.1.4",
+    changes: [
+      "Bei einem Match oder Spielsieg deines Teams rieseln Sternchen über den Bildschirm, dazu «MATCH!» bzw. «GEWONNEN!» in grossen Buchstaben",
+    ],
+  },
   {
     version: "1.1.3",
     changes: [
@@ -766,6 +772,32 @@ function FeltBackground() {
   );
 }
 
+// Feier bei Match oder Sieg: Sternchen rieseln von oben, grosses Wort darüber.
+// Liegt über allem, fängt aber keine Berührungen ab.
+function Celebration({ text }) {
+  const stars = React.useMemo(() => Array.from({ length: 90 }, (_, i) => {
+    const r = (k) => { const x = Math.sin((i + 1) * 12.9898 * k) * 43758.5453; return x - Math.floor(x); };
+    return { left: r(1) * 100, delay: r(2) * 2.2, dur: 2.2 + r(3) * 2, size: 8 + r(4) * 16, rot: r(5) * 360, col: ["#f4c430", "#fff6c8", "#ffffff", "#ffd966"][Math.floor(r(6) * 4)] };
+  }), []);
+  return (
+    <div data-party="1" style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none", overflow: "hidden" }}>
+      <style>{`
+        @keyframes jassStern { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; } 8% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(110vh) rotate(540deg); opacity: 0; } }
+        @keyframes jassWort { 0% { transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); opacity: 0; } 15% { transform: translate(-50%, -50%) scale(1.08) rotate(-4deg); opacity: 1; } 25% { transform: translate(-50%, -50%) scale(1) rotate(-4deg); } 85% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.05) rotate(-4deg); opacity: 0; } }
+      `}</style>
+      {stars.map((st, i) => (
+        <div key={i} style={{ position: "absolute", top: 0, left: st.left + "%", fontSize: st.size, color: st.col, textShadow: "0 0 6px rgba(255,220,120,0.8)",
+          animation: "jassStern " + st.dur + "s linear " + st.delay + "s both" }}>
+          <span style={{ display: "inline-block", transform: "rotate(" + st.rot + "deg)" }}>★</span>
+        </div>
+      ))}
+      <div style={{ position: "absolute", left: "50%", top: "45%", whiteSpace: "nowrap", fontWeight: 900, letterSpacing: "0.02em",
+        fontSize: "min(" + Math.floor(128 / text.length) + "vw, 30vh)", color: C.gold, WebkitTextStroke: "2px #5a3d00",
+        textShadow: "0 6px 0 #7a5200, 0 10px 30px rgba(0,0,0,0.7)", animation: "jassWort 4.2s ease-out both", fontFamily: "Georgia, serif" }}>{text}</div>
+    </div>
+  );
+}
+
 function useHeight() {
   const [h, setH] = useState(window.innerHeight);
   useEffect(() => { const f = () => setH(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -1338,6 +1370,13 @@ function JassApp() {
   const [selected, setSelected] = useState(null);
   const [endHidden, setEndHidden] = useState(false); // Rundenabrechnung zugeklappt
   const [drag, setDrag] = useState(null); // Wischen: { c, x0, y0, dx, dy, moved }
+  const [party, setParty] = useState(null); // Feier: { text, key }
+  const partyTimer = useRef(null);
+  const celebrate = (text) => {
+    clearTimeout(partyTimer.current);
+    setParty({ text, key: Date.now() });
+    partyTimer.current = setTimeout(() => setParty(null), 4600);
+  };
   const toastTimer = useRef(null);
   const [imgs, setImgs] = useState({});
   const reloadImgs = () => imgAll().then(setImgs).catch((e) => console.error("Kartenbilder:", e));
@@ -1395,6 +1434,9 @@ function JassApp() {
   const record = (g, ng) => {
     if (ng.round.phase !== "roundEnd" || g.round.phase === "roundEnd") return;
     const res = ng.round.result;
+    // Feier für dein Team: Sieg vor Match
+    if (ng.over && ng.over.winner === 0) celebrate("GEWONNEN!");
+    else if (res.match === 0) celebrate("MATCH!");
     setStats((s) => ({
       ...s, rounds: s.rounds + 1, matches: s.matches + (res.match === 0 ? 1 : 0),
       played: s.played + (ng.over ? 1 : 0), won: s.won + (ng.over && ng.over.winner === 0 ? 1 : 0),
@@ -1740,6 +1782,7 @@ function JassApp() {
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
+      {party && <Celebration key={party.key} text={party.text} />}
       {imgModal}
     </div>
   );
