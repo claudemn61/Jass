@@ -31,8 +31,8 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   (ab 11 → 20er-Strich + Minus-Einer, z.B. 9 + 8 = 20er und −3). Rückseite Striche über alle Spiele; bei Spielabbruch werden die Striche dieses Spiels
   (`game.pend`) abgezogen, einzelne Striche manuell löschbar (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
-- Namens-Badges (iPad, rund): eigenes Foto/PDF je Spieler lokal in IndexedDB `jass-bilder` unter
-  `avatar:<Sitz>` (ist damit auch im Backup), sonst leerer Kreis mit dem Namen darin (`PlayerPic`).
+- Mitspieler am Tisch: iPad nur gefächerte Karten (`CardFan`), iPhone nur der Name; keine Spielerbilder.
+- Einstellung `thank` (Bedanken): `knopf` | `auto` | `aus`, Modulvariable `THANK` in `jass.jsx`.
 - Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
   Computer erhalten diese Information nicht.
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).

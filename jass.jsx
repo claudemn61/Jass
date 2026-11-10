@@ -4,9 +4,16 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.5";
+const APP_VERSION = "1.2.6";
 
 const CHANGELOG = [
+  {
+    version: "1.2.6",
+    changes: [
+      "Keine Spielerbilder mehr: auf dem iPad nur die gefächerten Karten, auf dem iPhone nur der Name; in den Einstellungen werden nur noch die Namen vergeben",
+      "Neue Einstellung «Bedanken»: per Knopf (Standard), automatisch oder gar nicht (nur Abrechnung am Rundenende)",
+    ],
+  },
   {
     version: "1.2.5",
     changes: [
@@ -126,6 +133,9 @@ const RANK_NAME = { ch: ["Sechser", "Siebner", "Achter", "Nell", "Banner", "Unde
 // Aktuelle Spielernamen (Sitz 0 unten = du, 1 rechts, 2 oben = Partner, 3 links);
 // werden in JassApp aus den Einstellungen gesetzt.
 let NAMES = DEFAULT_NAMES.slice();
+// Einstellung «Bedanken»: "knopf" (du per Knopf, Gegner automatisch), "auto" (wer das Ziel erreicht,
+// gewinnt sofort, ohne Knopf) oder "aus" (nur Abrechnung am Rundenende); wird in JassApp gesetzt.
+let THANK = "knopf";
 const teamName = (t) => NAMES[t] + " & " + NAMES[t + 2];
 // «Du wählst» vs. «Anna wählt»
 const verb = (p, du, er) => (p === 0 && NAMES[0] === "Du" ? du : er);
@@ -375,7 +385,12 @@ function doCollect(g) {
   // Die Gegner (Computer) bedanken sich, sobald sie die Zielpunkte erreicht haben.
   // Für "Wir" gilt der Knopf «Bedanken».
   const res = partialResult({ ...r, ...upd }, g.mult);
-  if (g.scores[1] + res.total[1] >= g.target) return finishRound(g, upd, res, 1, { bedankt: upd.trickNo, bedanktVon: 1 });
+  if (THANK === "auto") {
+    const ap = E.applyScore(g.scores, res, g.target);
+    if (ap.winner != null) return finishRound(g, upd, res, ap.winner, { bedankt: upd.trickNo, bedanktVon: ap.winner });
+  } else if (THANK === "knopf" && g.scores[1] + res.total[1] >= g.target) {
+    return finishRound(g, upd, res, 1, { bedankt: upd.trickNo, bedanktVon: 1 });
+  }
   return { ...g, round: { ...r, ...upd, trick: [], turn: w, phase: "play" } };
 }
 
@@ -1306,22 +1321,7 @@ function BackupRow() {
   );
 }
 
-// Bild für ein Namens-Badge: eigenes Foto (lokal, IndexedDB "avatar:<Sitz>"),
-// sonst ein leerer Kreis mit dem Namen des Spielers darin.
-function PlayerPic({ p, size, imgs }) {
-  const img = imgs && imgs["avatar:" + p];
-  if (img) return <img src={img} alt="" draggable={false} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", display: "block" }} />;
-  const name = NAMES[p] || "";
-  const fs = Math.min(size * 0.3, (size * 1.25) / Math.max(name.length, 1));
-  return (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: "rgba(0,0,0,0.35)",
-      display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 400, fontSize: fs, textShadow: "0 1px 3px rgba(0,0,0,0.5)", overflow: "hidden", whiteSpace: "nowrap" }}>
-      {name}
-    </div>
-  );
-}
-
-function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAvatar, imgs, onAvatarRemove }) {
+function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   const row = (label, el, hint) => (
     <div style={{ marginBottom: 16 }}>
@@ -1336,20 +1336,14 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAva
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {[[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]].map(([i, lab]) => (
             <label key={i} style={{ fontSize: 12, color: C.dim }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span onClick={(e) => { e.preventDefault(); onAvatar(i); }} style={{ cursor: "pointer", borderRadius: "50%", border: "2px solid " + C.gold }}>
-                  <PlayerPic p={i} size={30} imgs={imgs} />
-                </span>
-                {imgs && imgs["avatar:" + i] && <span onClick={(e) => { e.preventDefault(); if (window.confirm("Bild von " + NAMES[i] + " entfernen?")) onAvatarRemove(i); }} style={{ cursor: "pointer", color: C.dim, fontSize: 13 }}>✕</span>}
-                {lab}
-              </span>
+              {lab}
               <input value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14}
                 onChange={(e) => { const n = (settings.names || DEFAULT_NAMES).slice(); n[i] = e.target.value; set("names", n); }}
                 style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 3, padding: "8px 10px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 15, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
             </label>
           ))}
         </div>
-      ), "Leeres Feld = Standardname. Rundes Bild antippen, um ein eigenes Foto (JPEG) oder PDF zu laden – nur auf diesem Gerät gespeichert, auf dem iPad bei den Spielern gezeigt.")}
+      ), "Leeres Feld = Standardname.")}
       {row("Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Deutschschweizer"], ["fr", "Französisch"]]} />)}
       {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
       {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
@@ -1364,6 +1358,10 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAva
         settings.openCards ? "Die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen." : null)}
       {row("Nicht spielbare Karten", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal zeigen"]]} />,
         settings.dimIllegal === false ? "Alle Karten sehen gleich aus; eine nicht erlaubte Karte lässt sich trotzdem nicht spielen." : null)}
+      {row("Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Per Knopf"], ["auto", "Automatisch"], ["aus", "Nicht möglich"]]} />,
+        (settings.thank || "knopf") === "knopf" ? "Du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren); die Gegner bedanken sich automatisch."
+          : settings.thank === "auto" ? "Sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort – für beide Teams, ohne Knopf."
+          : "Kein vorzeitiges Ende: das Ziel zählt erst bei der Abrechnung am Rundenende.")}
       {row("Bock-Karten spielen", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Alle gleichzeitig"], [false, "Einzeln"]]} />,
         settings.claimAll !== false ? "Hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin; der Haufen geht an sein Team." : "Auch mit lauter Böcken wird jede Karte einzeln gespielt (gilt für alle Spieler).")}
       {row("Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "Antippen + bestätigen"], ["tap", "Ein Tipp"], ["swipe", "Wischen"]]} />,
@@ -1388,7 +1386,7 @@ function RulesModal({ onClose, deck }) {
       {h("Weis und Stöck")}
       {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Under 200, vier Nell 150, vier Ass/König/Ober/Zehner 100. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
-      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
+      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Einstellungen lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
       {h("Offene Karten (Lernmodus)")}
       {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
@@ -1870,29 +1868,13 @@ function JassApp() {
   const vw = useWidth();
   const vh = useHeight();
   const deck = settings.deck;
+  THANK = settings.thank || "knopf";
   NAMES = [0, 1, 2, 3].map((i) => ((settings.names && settings.names[i]) || "").trim() || DEFAULT_NAMES[i]);
   const sp = SPEEDS[settings.speed] || SPEEDS.normal;
 
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
   const imgCtx = { on: settings.customImgs, index: settings.imgIndex, map: imgs };
   const wrap = (el) => <CardImgCtx.Provider value={imgCtx}>{el}</CardImgCtx.Provider>;
-  // Badge-Bild laden: Foto oder PDF (erste Seite), nur lokal gespeichert
-  const avatarRef = useRef(null);
-  const avatarWho = useRef(null);
-  const pickAvatar = (i) => { avatarWho.current = i; avatarRef.current && avatarRef.current.click(); };
-  const onAvatarFile = async (ev) => {
-    const f = ev.target.files && ev.target.files[0];
-    ev.target.value = "";
-    if (!f || avatarWho.current == null) return;
-    try {
-      const files = await expandFiles([f]);
-      const url = await shrinkImage(files[0]);
-      await imgWrite((st) => st.put(url, "avatar:" + avatarWho.current));
-      await reloadImgs();
-    } catch (e) { say("Bild konnte nicht geladen werden: " + (e.message || e), 3000); }
-  };
-  const removeAvatar = async (i) => { await imgWrite((st) => st.delete("avatar:" + i)); await reloadImgs(); };
-  const avatarModal = <input ref={avatarRef} type="file" accept="image/*,application/pdf" onChange={onAvatarFile} style={{ display: "none" }} />;
   const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal("settings")} />;
   useEffect(() => { save("game", game); }, [game]);
   useEffect(() => { save("stats", stats); }, [stats]);
@@ -2045,11 +2027,10 @@ function JassApp() {
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
         <div style={{ color: "rgba(240,240,232,0.55)", fontSize: 12, marginTop: 10, fontFamily: CHALK_FONT }}>v{APP_VERSION}</div>
         </div>
-        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onAvatar={pickAvatar} imgs={imgs} onAvatarRemove={removeAvatar} onClose={() => setModal(null)} />}
+        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
         {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
         {imgModal}
-        {avatarModal}
       </div>
     );
   }
@@ -2179,21 +2160,22 @@ function JassApp() {
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
         {big ? (
-          // iPad: gefächerte Karten (Rückseiten, echte Anzahl), Name darunter
+          // iPad: nur die gefächerten Karten (Rückseiten, echte Anzahl); Markierungen: gelb = am Zug,
+          // grün = hält den Stich, Stern = hat den Trumpf angesagt
           <>
-            <CardFan cards={r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
-            <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
-              border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
-              boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>{NAMES[p]}{star}</div>
+            <div style={{ filter: curHolder === p ? "drop-shadow(0 0 8px " + STICH + ") drop-shadow(0 0 3px " + STICH + ")" : active ? "drop-shadow(0 0 8px " + C.gold + ") drop-shadow(0 0 3px " + C.gold + ")" : "none" }}>
+              <CardFan cards={r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
+            </div>
+            {star && <div style={{ fontSize: 16 * uiK, color: C.gold, lineHeight: 1 }}>{star.trim()}</div>}
           </>
         ) : (
-        <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
-          border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
-          boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
-          {NAMES[p]}{star}
-        </div>
+          // iPhone: nur der Name
+          <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
+            border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
+            boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
+            {NAMES[p]}{star}
+          </div>
         )}
-        {!big && <div style={{ fontSize: 11 * uiK, color: C.dim }}>{r.hands[p].length} Karten</div>}
         {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={r.hands[p]} />}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
@@ -2273,7 +2255,7 @@ function JassApp() {
         </div>
         {/* Knöpfe unten rechts nebeneinander (kollidieren so nicht mit den Plätzen) */}
         <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", gap: 6, zoom: uiK }}>
-          {(r.phase === "play" || r.phase === "trickDone") && !game.over && (
+          {THANK === "knopf" && (r.phase === "play" || r.phase === "trickDone") && !game.over && (
             <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
               style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
           )}
@@ -2351,13 +2333,12 @@ function JassApp() {
       {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
         onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
-      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onAvatar={pickAvatar} imgs={imgs} onAvatarRemove={removeAvatar} onClose={() => setModal(null)} />}
+      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
       {party && (party.sad ? <Frustration key={party.key} text={party.text} /> : <Celebration key={party.key} text={party.text} />)}
       {replay && game.lastRound && <ReplayView rec={game.lastRound} deck={deck} speed={settings.speed} onClose={() => setReplay(false)} />}
       {imgModal}
-      {avatarModal}
     </div>
   );
 }
