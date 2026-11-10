@@ -1732,7 +1732,7 @@ function JassApp() {
             </div>
             {/* Name unter dem Badge nur, wenn ein eigenes Bild geladen ist; sonst steht er im Kreis */}
             {imgs["avatar:" + p] ? (
-              <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 700 }}>{NAMES[p]}{star}</div>
+              <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400 }}>{NAMES[p]}{star}</div>
             ) : star ? <div style={{ fontSize: 16 * uiK, color: C.gold, lineHeight: 1 }}>{star.trim()}</div> : null}
           </div>
         ) : (
