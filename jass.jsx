@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.2.1";
 
 const CHANGELOG = [
+  {
+    version: "1.2.1",
+    changes: [
+      "Trumpfwahl: sieben quadratische Knöpfe über die ganze Breite (6 Trumpf-Symbole und «Schieben» als Symbol), Hinweis darüber",
+    ],
+  },
   {
     version: "1.2.0",
     changes: [
@@ -1957,20 +1963,30 @@ function JassApp() {
       {/* Trumpfwahl */}
       {r.phase === "choose" && r.decider === 0 && (
         <div style={{ maxWidth: big ? 760 : 560, width: "100%", margin: "0 auto", padding: "0 10px 8px", boxSizing: "border-box" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
+          {/* Hinweis über den Knöpfen */}
+          <div style={{ textAlign: "center", fontSize: 13 * uiK, color: C.gold, fontWeight: 700, marginBottom: 6 }}>{status}</div>
+          {/* 7 quadratische Knöpfe über die ganze Breite: 6 Trumpfarten + Schieben */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
             {[3, 1, 0, 2, 4, 5].map((t) => (
               <button key={t} onClick={() => choose(game, t)} title={modeName(t, deck) + " ×" + E.multiplier(t, game.mult)} aria-label={modeName(t, deck)}
-                style={{ ...btn(false), padding: "10px 0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ ...btn(false), padding: 0, aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <ModeIcon t={t} deck={deck} size={Math.round(30 * uiK)} />
               </button>
             ))}
+            <button onClick={() => !r.pushed && push(game)} disabled={r.pushed} title="Schieben" aria-label="Schieben"
+              style={{ ...btn(true), padding: 0, aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", opacity: r.pushed ? 0.3 : 1 }}>
+              {/* Pfeil zum Partner (oben) */}
+              <svg viewBox="0 0 40 40" width={Math.round(30 * uiK)} height={Math.round(30 * uiK)}>
+                <path d="M10 32 Q10 14 26 12" stroke="#1a1200" strokeWidth="4" fill="none" strokeLinecap="round" />
+                <path d="M21 5 L30 12 L21 19" stroke="#1a1200" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
           </div>
-          {!r.pushed && <button onClick={() => push(game)} style={{ ...btn(true), width: "100%", marginTop: 6, padding: "10px" }}>Schieben</button>}
         </div>
       )}
 
       {/* Status + Hand */}
-      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{status}</div>
+      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
           {hand.map((c, i) => (
