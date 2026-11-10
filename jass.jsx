@@ -173,6 +173,8 @@ function finishRound(g, rUpd, res, winner, extra) {
   if (berg != null && g.berg == null) pend.berg[berg]++;
   return {
     ...g, scores, berg, pend, history: g.history.concat([entry]),
+    // für das Replay: Austeilung, Ansage und alle (eingezogenen) Stiche dieser Runde
+    lastRound: { no: r.no, start: r.start, chooser: r.chooser, decider: r.decider, pushed: r.pushed, trump: r.trump, tricks: (r.tricksLog || []).filter((t) => t.length === 4) },
     over: winner != null ? { winner } : null,
     round: { ...r, trick: [], turn: null, phase: "roundEnd", result: res, ...(extra || {}) },
   };
@@ -872,6 +874,80 @@ function Celebration({ text }) {
   );
 }
 
+// ── Replay der letzten Runde ──
+// Spielt die gespeicherte letzte Runde (Austeilung, Trumpf, alle Stiche)
+// automatisch nochmals ab. Alle Hände liegen offen; Stich für Stich werden
+// die Karten auf den Tisch gelegt und eingezogen.
+function ReplayView({ rec, deck, speed, onClose }) {
+  const sp = SPEEDS[speed] && speed !== "manuell" ? SPEEDS[speed] : SPEEDS.normal;
+  // Ereignisse: je Stich 4× Karte legen, dann einziehen
+  const events = React.useMemo(() => {
+    const ev = [];
+    rec.tricks.forEach((tr, k) => { tr.forEach((e, i) => ev.push({ k, i })); ev.push({ k, collect: true }); });
+    return ev;
+  }, [rec]);
+  const [step, setStep] = useState(0);
+  const [pause, setPause] = useState(false);
+  const vw = useWidth(), vh = useHeight();
+  useEffect(() => {
+    if (pause || step >= events.length) return;
+    const t = setTimeout(() => setStep(step + 1), events[step].collect ? sp.trick : sp.bot + 150);
+    return () => clearTimeout(t);
+  }, [step, pause]);
+  // Zustand nach `step` Ereignissen
+  const played = new Set(); let cur = [], won = [0, 0], pts = [0, 0];
+  for (let j = 0; j < step; j++) {
+    const e = events[j];
+    if (e.collect) {
+      const tr = rec.tricks[e.k];
+      const w = tr[E.trickWinnerIdx(tr, rec.trump)].p;
+      won[E.team(w)]++;
+      pts[E.team(w)] += tr.reduce((s, x) => s + E.points(x.c, rec.trump), 0) + (e.k === 8 ? 5 : 0);
+      cur = [];
+    } else { const x = rec.tricks[e.k][e.i]; played.add(x.c); cur = cur.concat([x]); }
+  }
+  const done = step >= events.length;
+  const hands = rec.start.map((h) => E.sortHand(h.filter((c) => !played.has(c)), rec.trump));
+  const W = Math.min(vw, 1100), cw = Math.max(40, Math.min(110, Math.floor((W - 16) / 6), Math.floor(vh * 0.11)));
+  const mw = Math.round(cw * 0.55), tw = Math.round(cw * 0.85), th = Math.round(tw * 1.5);
+  const curIdx = cur.length ? E.trickWinnerIdx(cur, rec.trump) : -1;
+  const pos = (p) => "translate(" + ({ 0: 0, 1: tw * 0.78, 2: 0, 3: -tw * 0.78 }[p]) + "px," + ({ 0: th * 0.42, 1: 0, 2: -th * 0.42, 3: 0 }[p]) + "px) rotate(" + ({ 0: 0, 1: -8, 2: 3, 3: 8 }[p]) + "deg)";
+  const Row = ({ cards, w, st }) => (
+    <div style={{ position: "relative", width: cards.length ? w + st * (cards.length - 1) : w, height: Math.round(w * 1.5) }}>
+      {cards.map((c, i) => <div key={c} style={{ position: "absolute", left: i * st, top: 0, zIndex: i }}><Card id={c} deck={deck} w={w} trump={E.isTrump(c, rec.trump)} /></div>)}
+    </div>
+  );
+  const label = (p) => <div style={{ fontSize: 13, fontWeight: 700, color: C.text, background: "rgba(0,0,0,0.45)", padding: "2px 10px", borderRadius: 12, marginBottom: 4, textAlign: "center" }}>{NAMES[p]}{rec.decider === p ? (rec.pushed ? " ☆" : " ★") : ""}</div>;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 120, background: C.felt2, color: C.text, overflow: "hidden" }}>
+      <FeltBackground />
+      <div style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 10px)", left: 10, right: 10, display: "flex", alignItems: "center", gap: 10, zIndex: 5 }}>
+        <div style={{ fontWeight: 800, fontSize: 15 }}>↺ Replay Runde {rec.no}</div>
+        <ModeIcon t={rec.trump} deck={deck} size={20} />
+        <div style={{ fontSize: 13, color: C.dim }}>Stiche {won[0]}:{won[1]} · Punkte {pts[0]}:{pts[1]}</div>
+        <div style={{ flex: 1 }} />
+        {!done && <button onClick={() => setPause(!pause)} style={{ ...btn(false), padding: "6px 10px", fontSize: 13 }}>{pause ? "▶" : "❚❚"}</button>}
+        <button onClick={() => { setStep(0); setPause(false); }} style={{ ...btn(false), padding: "6px 10px", fontSize: 13 }}>⟲</button>
+        <button onClick={onClose} style={{ ...btn(false), padding: "6px 10px", fontSize: 13 }}>✕</button>
+      </div>
+      <div style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 56px)", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>{label(2)}<Row cards={hands[2]} w={mw} st={Math.round(mw * 0.45)} /></div>
+      <div style={{ position: "absolute", top: "40%", left: 8, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>{label(3)}<Row cards={hands[3]} w={mw} st={Math.round(mw * 0.32)} /></div>
+      <div style={{ position: "absolute", top: "40%", right: 8, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>{label(1)}<Row cards={hands[1]} w={mw} st={Math.round(mw * 0.32)} /></div>
+      <div style={{ position: "absolute", left: "50%", top: "52%", width: 0, height: 0 }}>
+        {cur.map((e, i) => (
+          <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, transform: pos(e.p), zIndex: i, filter: i === curIdx ? "drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 2px #4ade80)" : "none" }}>
+            <Card id={e.c} deck={deck} w={tw} trump={E.isTrump(e.c, rec.trump)} />
+          </div>
+        ))}
+      </div>
+      {done && <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "rgba(0,0,0,0.7)", padding: "12px 18px", borderRadius: 12, textAlign: "center", fontWeight: 700 }}>Ende der Runde · {pts[0]} : {pts[1]}</div>}
+      <div style={{ position: "absolute", bottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        {label(0)}<Row cards={hands[0]} w={cw} st={Math.round(cw * 0.6)} />
+      </div>
+    </div>
+  );
+}
+
 function useHeight() {
   const [h, setH] = useState(window.innerHeight);
   useEffect(() => { const f = () => setH(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -1468,6 +1544,7 @@ function JassApp() {
   const [endHidden, setEndHidden] = useState(false); // Rundenabrechnung zugeklappt
   const [drag, setDrag] = useState(null); // Wischen: { c, x0, y0, dx, dy, moved }
   const [party, setParty] = useState(null); // Feier: { text, key }
+  const [replay, setReplay] = useState(false); // Replay der letzten Runde offen
   const partyTimer = useRef(null);
   const celebrate = (text, sad) => {
     clearTimeout(partyTimer.current);
@@ -1597,14 +1674,14 @@ function JassApp() {
   const manual = settings.speed === "manuell";
   // Automatisch mit Verzögerung; im Modus «Manuell» erst beim Tippen auf den Teppich
   useEffect(() => {
-    if (!game || !game.round || home || manual) return;
+    if (!game || !game.round || home || manual || replay) return; // während des Replays pausiert das Spiel
     const step = botStep(game);
     if (!step) return;
     const r = game.round;
     const delay = r.phase === "trickDone" ? sp.trick : r.phase === "choose" ? sp.bot * 1.4 : sp.bot;
     const timer = setTimeout(step, delay);
     return () => clearTimeout(timer);
-  }, [game, home, manual]);
+  }, [game, home, manual, replay]);
 
   const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setGame(newGame(settings)); };
   const askNew = () => {
@@ -1840,6 +1917,10 @@ function JassApp() {
       {/* Tisch */}
       <div onClick={() => { if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone") collect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
         <Seat p={2} style={{ top: 10, left: "50%", transform: "translateX(-50%)" }} />
+        {game.lastRound && game.lastRound.tricks.length > 0 && (
+          <button onClick={(ev) => { ev.stopPropagation(); setReplay(true); }} title="Letzte Runde nochmals abspielen"
+            style={{ position: "absolute", top: 10, left: 8, zIndex: 5, zoom: uiK, ...btn(false), padding: "5px 9px", fontSize: 12 }}>↺ Replay</button>
+        )}
         <div style={{ position: "absolute", top: 10, right: 8, zIndex: 5, zoom: uiK }} onClick={(ev) => ev.stopPropagation()}>
           <TafelBadge onClick={() => setModal("tafel")} />
         </div>
@@ -1929,6 +2010,7 @@ function JassApp() {
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
       {party && (party.sad ? <Frustration key={party.key} text={party.text} /> : <Celebration key={party.key} text={party.text} />)}
+      {replay && game.lastRound && <ReplayView rec={game.lastRound} deck={deck} speed={settings.speed} onClose={() => setReplay(false)} />}
       {imgModal}
       {avatarModal}
     </div>
