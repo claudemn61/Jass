@@ -958,79 +958,20 @@ function BackupRow() {
   );
 }
 
-// ── Comic-Figuren für die Namens-Badges (eigene, einfache Zeichnung) ──
-// Standard-Figuren für die runden Namens-Badges (wenn kein eigenes Foto geladen ist).
-const DEFAULT_AVATARS = [
-  { bg: "#3b6e8f", skin: "#f6d7b8", hair: "kurz", hairColor: "#6b3e1a", eyes: "punkt", mouth: "lachen", beard: "kein", glasses: "keine", hat: "kein" },
-  { bg: "#8f3b4a", skin: "#e9b98f", hair: "igel", hairColor: "#2b1a10", eyes: "zwinker", mouth: "grinsen", beard: "schnauz", glasses: "keine", hat: "kein" },
-  { bg: "#5b8f3b", skin: "#f6d7b8", hair: "zopf", hairColor: "#e2c26a", eyes: "gross", mouth: "lachen", beard: "kein", glasses: "rund", hat: "kein" },
-  { bg: "#8f6d3b", skin: "#c98d5f", hair: "glatze", hairColor: "#9a9a9a", eyes: "muede", mouth: "neutral", beard: "vollbart", glasses: "eckig", hat: "muetze" },
-];
-
-function Avatar({ a, size }) {
-  a = a || DEFAULT_AVATARS[0];
-  const hc = a.hairColor, sk = a.skin;
-  const hairBack = a.hair === "lang" ? <path d="M24 44 Q22 82 34 88 L66 88 Q78 82 76 44 Z" fill={hc} />
-    : a.hair === "zopf" ? <g><path d="M27 44 Q26 60 30 66 L70 66 Q74 60 73 44 Z" fill={hc} /><ellipse cx="78" cy="62" rx="7" ry="12" fill={hc} /></g> : null;
-  const hairFront = {
-    kurz: <path d="M27 46 Q28 22 50 21 Q72 22 73 46 Q66 34 50 33 Q34 34 27 46 Z" fill={hc} />,
-    lang: <path d="M26 48 Q26 20 50 20 Q74 20 74 48 Q70 32 56 30 Q44 38 30 40 Z" fill={hc} />,
-    locken: <g fill={hc}>{[[30, 36], [38, 26], [50, 22], [62, 26], [70, 36], [27, 46], [73, 46]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="9" />)}</g>,
-    glatze: <path d="M27 50 Q26 44 30 42 M73 50 Q74 44 70 42" stroke={hc} strokeWidth="4" fill="none" strokeLinecap="round" />,
-    zopf: <path d="M27 46 Q28 22 50 21 Q72 22 73 46 Q62 30 40 34 Q32 38 27 46 Z" fill={hc} />,
-    igel: <path d="M28 44 L30 28 L36 36 L40 20 L46 32 L50 16 L54 32 L60 20 L64 36 L70 28 L72 44 Z" fill={hc} />,
-  }[a.hair];
-  const eye = (x) => ({
-    punkt: <circle cx={x} cy="52" r="3" fill="#1d1d1d" />,
-    gross: <g><circle cx={x} cy="52" r="6" fill="#fff" stroke="#1d1d1d" strokeWidth="1.2" /><circle cx={x + 1} cy="53" r="3" fill="#1d1d1d" /></g>,
-    zwinker: x < 50 ? <path d={"M" + (x - 5) + " 52 Q" + x + " 48 " + (x + 5) + " 52"} stroke="#1d1d1d" strokeWidth="2.4" fill="none" strokeLinecap="round" /> : <circle cx={x} cy="52" r="3" fill="#1d1d1d" />,
-    muede: <g><circle cx={x} cy="53" r="3" fill="#1d1d1d" /><path d={"M" + (x - 5) + " 51 L" + (x + 5) + " 51"} stroke={sk} strokeWidth="3" /><path d={"M" + (x - 5) + " 50 L" + (x + 5) + " 50"} stroke="#1d1d1d" strokeWidth="1.4" /></g>,
-  }[a.eyes]);
-  const mouth = {
-    lachen: <path d="M40 66 Q50 76 60 66 Z" fill="#7a2020" stroke="#1d1d1d" strokeWidth="1.5" strokeLinejoin="round" />,
-    grinsen: <path d="M39 67 Q52 74 61 64" stroke="#1d1d1d" strokeWidth="2.5" fill="none" strokeLinecap="round" />,
-    neutral: <path d="M42 68 L58 68" stroke="#1d1d1d" strokeWidth="2.5" strokeLinecap="round" />,
-    staunen: <ellipse cx="50" cy="68" rx="4" ry="5" fill="#7a2020" stroke="#1d1d1d" strokeWidth="1.5" />,
-  }[a.mouth];
-  const beard = {
-    kein: null,
-    schnauz: <path d="M38 63 Q44 58 50 62 Q56 58 62 63 Q56 66 50 64 Q44 66 38 63 Z" fill={hc} />,
-    vollbart: <path d="M28 54 Q28 84 50 86 Q72 84 72 54 Q68 70 58 72 Q50 64 42 72 Q32 70 28 54 Z" fill={hc} />,
-  }[a.beard];
-  const glasses = {
-    keine: null,
-    rund: <g stroke="#1d1d1d" strokeWidth="2" fill="rgba(255,255,255,0.25)"><circle cx="40" cy="52" r="8" /><circle cx="60" cy="52" r="8" /><path d="M48 52 L52 52" /></g>,
-    eckig: <g stroke="#1d1d1d" strokeWidth="2" fill="rgba(255,255,255,0.25)"><rect x="31" y="46" width="17" height="12" rx="2" /><rect x="52" y="46" width="17" height="12" rx="2" /><path d="M48 51 L52 51" /></g>,
-  }[a.glasses];
-  const hat = {
-    kein: null,
-    muetze: <g><path d="M26 40 Q28 16 50 16 Q72 16 74 40 Z" fill="#c0392b" /><rect x="24" y="36" width="52" height="8" rx="4" fill="#f4f1e8" /></g>,
-    zipfel: <g><path d="M28 40 Q40 10 70 6 Q62 22 72 40 Z" fill="#2c6e49" /><circle cx="70" cy="6" r="5" fill="#f4f1e8" /><rect x="26" y="36" width="48" height="7" rx="3.5" fill="#f4f1e8" /></g>,
-  }[a.hat];
-  return (
-    <svg viewBox="0 0 100 100" width={size} height={size} style={{ display: "block", borderRadius: "50%" }}>
-      <circle cx="50" cy="50" r="50" fill={a.bg} />
-      {hairBack}
-      <rect x="43" y="74" width="14" height="10" fill={sk} />
-      <path d="M22 100 Q24 82 50 82 Q76 82 78 100 Z" fill="rgba(255,255,255,0.85)" />
-      <ellipse cx="26" cy="55" rx="5" ry="7" fill={sk} /><ellipse cx="74" cy="55" rx="5" ry="7" fill={sk} />
-      <ellipse cx="50" cy="54" rx="23" ry="26" fill={sk} />
-      {beard}
-      {eye(40)}{eye(60)}
-      <path d="M50 56 Q47 62 51 63" stroke="rgba(0,0,0,0.35)" strokeWidth="1.6" fill="none" strokeLinecap="round" />
-      {mouth}
-      {hairFront}
-      {glasses}
-      {hat}
-    </svg>
-  );
-}
-
-// Bild für ein Namens-Badge: eigenes Foto (lokal, IndexedDB "avatar:<Sitz>") oder Standard-Comic
+// Bild für ein Namens-Badge: eigenes Foto (lokal, IndexedDB "avatar:<Sitz>"),
+// sonst ein farbiger Kreis mit dem Namen des Spielers.
+const BADGE_BG = ["#3b6e8f", "#8f3b4a", "#5b8f3b", "#8f6d3b"];
 function PlayerPic({ p, size, imgs }) {
   const img = imgs && imgs["avatar:" + p];
   if (img) return <img src={img} alt="" draggable={false} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", display: "block" }} />;
-  return <Avatar a={DEFAULT_AVATARS[p]} size={size} />;
+  const name = NAMES[p] || "";
+  const fs = Math.min(size * 0.42, (size * 1.5) / Math.max(name.length, 1));
+  return (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.25), transparent 60%), " + BADGE_BG[p],
+      display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: fs, textShadow: "0 1px 3px rgba(0,0,0,0.5)", overflow: "hidden", whiteSpace: "nowrap" }}>
+      {name}
+    </div>
+  );
 }
 
 function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAvatar, imgs, onAvatarRemove }) {
