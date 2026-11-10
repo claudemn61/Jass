@@ -959,15 +959,14 @@ function BackupRow() {
 }
 
 // Bild für ein Namens-Badge: eigenes Foto (lokal, IndexedDB "avatar:<Sitz>"),
-// sonst ein farbiger Kreis mit dem Namen des Spielers.
-const BADGE_BG = ["#3b6e8f", "#8f3b4a", "#5b8f3b", "#8f6d3b"];
+// sonst ein leerer Kreis mit dem Namen des Spielers darin.
 function PlayerPic({ p, size, imgs }) {
   const img = imgs && imgs["avatar:" + p];
   if (img) return <img src={img} alt="" draggable={false} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", display: "block" }} />;
   const name = NAMES[p] || "";
   const fs = Math.min(size * 0.42, (size * 1.5) / Math.max(name.length, 1));
   return (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.25), transparent 60%), " + BADGE_BG[p],
+    <div style={{ width: size, height: size, borderRadius: "50%", background: "rgba(0,0,0,0.35)",
       display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: fs, textShadow: "0 1px 3px rgba(0,0,0,0.5)", overflow: "hidden", whiteSpace: "nowrap" }}>
       {name}
     </div>
@@ -1731,7 +1730,10 @@ function JassApp() {
             <div style={{ borderRadius: "50%", border: "4px solid " + ring, boxShadow: (curHolder === p ? "0 0 14px " + STICH : active ? "0 0 14px " + C.gold : "0 4px 10px rgba(0,0,0,0.5)") }}>
               <div onClick={(ev) => { ev.stopPropagation(); pickAvatar(p); }} style={{ cursor: "pointer" }}><PlayerPic p={p} size={Math.round(64 * uiK)} imgs={imgs} /></div>
             </div>
-            <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 700 }}>{NAMES[p]}{star}</div>
+            {/* Name unter dem Badge nur, wenn ein eigenes Bild geladen ist; sonst steht er im Kreis */}
+            {imgs["avatar:" + p] ? (
+              <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 700 }}>{NAMES[p]}{star}</div>
+            ) : star ? <div style={{ fontSize: 16 * uiK, color: C.gold, lineHeight: 1 }}>{star.trim()}</div> : null}
           </div>
         ) : (
         <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
