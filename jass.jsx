@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.3";
+const APP_VERSION = "1.2.4";
 
 const CHANGELOG = [
+  {
+    version: "1.2.4",
+    changes: [
+      "Böcke auflegen korrigiert: alle werfen ihre restlichen Karten auf einmal aufs Feld, der ganze Haufen geht ans Team des Spielers mit den Böcken – auch mitten im Stich, wenn er an der Reihe ist",
+    ],
+  },
   {
     version: "1.2.3",
     changes: [
@@ -194,44 +200,64 @@ function finishRound(g, rUpd, res, winner, extra) {
   return {
     ...g, scores, berg, pend, history: g.history.concat([entry]),
     // für das Replay: Austeilung, Ansage und alle (eingezogenen) Stiche dieser Runde
-    lastRound: { no: r.no, start: r.start, chooser: r.chooser, decider: r.decider, pushed: r.pushed, trump: r.trump, tricks: (r.tricksLog || []).filter((t) => t.length === 4) },
+    lastRound: { no: r.no, start: r.start, chooser: r.chooser, decider: r.decider, pushed: r.pushed, trump: r.trump, tricks: (r.tricksLog || []).filter((t) => t.length === 4), pile: r.pile || null },
     over: winner != null ? { winner } : null,
     round: { ...r, trick: [], turn: null, phase: "roundEnd", result: res, ...(extra || {}) },
   };
 }
 
-// Hat Spieler p beim Ausspielen nur noch unschlagbare Böcke? (mind. 2 Karten)
-// Bock = kein Gegner hat eine höhere Karte dieser Farbe; Nicht-Trumpf-Karten
-// zählen nur, wenn kein Gegner mehr Trumpf hat (er könnte sonst stechen).
-function allBocks(r, p) {
+// Kann Spieler p (an der Reihe) alle Karten auflegen, weil ihm alle
+// restlichen Stiche sicher sind? (mind. 2 Karten)
+// - jede Karte ist ein Bock gegen die Gegner: kein Gegner hat eine höhere
+//   Karte dieser Farbe; Nicht-Trumpf nur, wenn kein Gegner mehr Trumpf hat
+// - läuft schon ein Stich, muss ihn sein Team sicher gewinnen: er hat eine
+//   erlaubte Karte, die den Stich übernimmt (oder der Partner führt), und kein
+//   Gegner, der noch dran kommt, kann das übertreffen.
+function canClaim(r, p) {
   const t = r.trump, hand = r.hands[p];
-  if (t == null || r.trick.length || hand.length < 2) return false;
-  const opp = [1, 3].flatMap((k) => r.hands[(p + k) % 4]);
+  if (t == null || r.turn !== p || hand.length < 2) return false;
+  const oppSeats = [1, 3].map((k) => (p + k) % 4);
+  const opp = oppSeats.flatMap((q) => r.hands[q]);
   const oppTrump = t < 4 && opp.some((c) => E.isTrump(c, t));
   const st = (x) => (t === E.UNDE ? 8 - E.rankOf(x) : E.rankOf(x));
-  return hand.every((c) => {
+  const bocks = hand.every((c) => {
     if (E.isTrump(c, t)) return !opp.some((o) => E.isTrump(o, t) && E.TRUMP_STR[E.rankOf(o)] > E.TRUMP_STR[E.rankOf(c)]);
     if (oppTrump) return false;
     return !opp.some((o) => E.suitOf(o) === E.suitOf(c) && st(o) > st(c));
   });
+  if (!bocks) return false;
+  if (!r.trick.length) return true;
+  const led = E.suitOf(r.trick[0].c);
+  const legal = E.legalCards(hand, r.trick, t);
+  // beste erlaubte Karte einsetzen, dann Stichhalter bestimmen
+  const best = legal.slice().sort((x, y) => E.power(y, led, t) - E.power(x, led, t))[0];
+  const tr = r.trick.concat([{ p, c: best }]);
+  const w = tr[E.trickWinnerIdx(tr, t)];
+  if (E.team(w.p) !== E.team(p)) return false;
+  const wPow = E.power(w.c, led, t);
+  // Gegner, die in diesem Stich noch spielen, dürfen nicht übertreffen können
+  const still = [1, 2, 3].map((k) => (p + k) % 4).filter((q) => !r.trick.some((e) => e.p === q) && E.team(q) !== E.team(p));
+  return still.every((q) => !E.legalCards(r.hands[q], tr, t).some((c) => E.power(c, led, t) > wPow));
 }
 
-// Alle Böcke auflegen: die restlichen Stiche werden sofort durchgespielt –
-// der Spieler legt seine Karten (Trümpfe zuerst, starke vor schwachen), die
-// anderen geben nach den Regeln zu. Abrechnung wie gewohnt (inkl. Match).
+// Alle Karten auflegen: alle Spieler werfen ihre restlichen Karten auf einmal
+// aufs Feld, der ganze Haufen (inkl. laufendem Stich, + 5 für den letzten
+// Stich) geht an das Team von p. Danach normale Abrechnung (inkl. Match).
 function doClaim(g, p) {
-  let ng = g;
-  const order = (h, t) => E.sortHand(h, t);
-  for (let guard = 0; guard < 60 && ng.round.phase !== "roundEnd"; guard++) {
-    const r = ng.round;
-    if (r.phase === "trickDone") { ng = doCollect(ng); continue; }
-    const q = r.turn;
-    let c;
-    if (q === p) c = order(r.hands[q], r.trump).find((x) => E.legalCards(r.hands[q], r.trick, r.trump).includes(x));
-    else c = E.botPlay({ hand: r.hands[q], trick: r.trick, t: r.trump, played: r.played, p: q, declarer: r.chooser, tricks: r.tricksLog });
-    ng = doPlay(ng, q, c);
-  }
-  return ng;
+  const r = g.round;
+  const pile = r.trick.slice();
+  [0, 1, 2, 3].map((k) => (p + k) % 4).forEach((q) => r.hands[q].forEach((c) => pile.push({ p: q, c })));
+  const team = E.team(p);
+  const pts = pile.reduce((s, e) => s + E.points(e.c, r.trump), 0) + 5;
+  const trickPts = r.trickPts.slice(); trickPts[team] += pts;
+  const tricks = r.tricks.slice(); tricks[team] += 9 - r.trickNo;
+  const played = r.played.concat(pile.map((e) => e.c));
+  const hands = r.hands.map(() => []);
+  const stoeckDone = r.stoeck != null ? true : r.stoeckDone;
+  const upd = { hands, trick: [], trickPts, tricks, played, stoeckDone, trickNo: 9, lastTrick: { cards: pile, winner: p, pts }, pile: { p, cards: pile } };
+  const res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
+  const ap = E.applyScore(g.scores, res, g.target);
+  return finishRound(g, upd, res, ap.winner, {});
 }
 
 function doCollect(g) {
@@ -894,6 +920,8 @@ function ReplayView({ rec, deck, speed, onClose }) {
   const events = React.useMemo(() => {
     const ev = [];
     rec.tricks.forEach((tr, k) => { tr.forEach((e, i) => ev.push({ k, i })); ev.push({ k, collect: true }); });
+    // Böcke aufgelegt: zuerst ggf. die Karten des laufenden Stichs, dann der ganze Haufen
+    if (rec.pile) { ev.push({ pile: true }); ev.push({ pileCollect: true }); }
     return ev;
   }, [rec]);
   const [step, setStep] = useState(0);
@@ -901,13 +929,19 @@ function ReplayView({ rec, deck, speed, onClose }) {
   const vw = useWidth(), vh = useHeight();
   useEffect(() => {
     if (pause || step >= events.length) return;
-    const t = setTimeout(() => setStep(step + 1), events[step].collect ? sp.trick : sp.bot + 150);
+    const t = setTimeout(() => setStep(step + 1), events[step].collect || events[step].pile ? sp.trick + 400 : sp.bot + 150);
     return () => clearTimeout(t);
   }, [step, pause]);
   // Zustand nach `step` Ereignissen
   const played = new Set(); let cur = [], won = [0, 0], pts = [0, 0];
   for (let j = 0; j < step; j++) {
     const e = events[j];
+    if (e.pile) { rec.pile.cards.forEach((x) => played.add(x.c)); cur = rec.pile.cards.slice(); continue; }
+    if (e.pileCollect) {
+      won[E.team(rec.pile.p)] += 9 - rec.tricks.length;
+      pts[E.team(rec.pile.p)] += rec.pile.cards.reduce((s, x) => s + E.points(x.c, rec.trump), 0) + 5;
+      cur = []; continue;
+    }
     if (e.collect) {
       const tr = rec.tricks[e.k];
       const w = tr[E.trickWinnerIdx(tr, rec.trump)].p;
@@ -920,7 +954,8 @@ function ReplayView({ rec, deck, speed, onClose }) {
   const hands = rec.start.map((h) => E.sortHand(h.filter((c) => !played.has(c)), rec.trump));
   const W = Math.min(vw, 1100), cw = Math.max(40, Math.min(110, Math.floor((W - 16) / 6), Math.floor(vh * 0.11)));
   const mw = Math.round(cw * 0.55), tw = Math.round(cw * 0.85), th = Math.round(tw * 1.5);
-  const curIdx = cur.length ? E.trickWinnerIdx(cur, rec.trump) : -1;
+  const isPile = cur.length > 4;
+  const curIdx = cur.length && !isPile ? E.trickWinnerIdx(cur, rec.trump) : -1;
   const pos = (p) => "translate(" + ({ 0: 0, 1: tw * 0.78, 2: 0, 3: -tw * 0.78 }[p]) + "px," + ({ 0: th * 0.42, 1: 0, 2: -th * 0.42, 3: 0 }[p]) + "px) rotate(" + ({ 0: 0, 1: -8, 2: 3, 3: 8 }[p]) + "deg)";
   const Row = ({ cards, w, st }) => (
     <div style={{ position: "relative", width: cards.length ? w + st * (cards.length - 1) : w, height: Math.round(w * 1.5) }}>
@@ -945,7 +980,7 @@ function ReplayView({ rec, deck, speed, onClose }) {
       <div style={{ position: "absolute", top: "40%", right: 8, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>{label(1)}<Row cards={hands[1]} w={mw} st={Math.round(mw * 0.32)} /></div>
       <div style={{ position: "absolute", left: "50%", top: "52%", width: 0, height: 0 }}>
         {cur.map((e, i) => (
-          <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, transform: pos(e.p), zIndex: i, filter: i === curIdx ? "drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 2px #4ade80)" : "none" }}>
+          <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, transform: isPile ? "translate(" + ((i % 9) - 4) * tw * 0.18 + "px," + (Math.floor(i / 9) - 1.5) * th * 0.18 + "px) rotate(" + ((i * 47) % 40 - 20) + "deg)" : pos(e.p), zIndex: i, filter: i === curIdx ? "drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 2px #4ade80)" : "none" }}>
             <Card id={e.c} deck={deck} w={tw} trump={E.isTrump(e.c, rec.trump)} />
           </div>
         ))}
@@ -1173,7 +1208,7 @@ function RulesModal({ onClose, deck }) {
       {h("Eigene Bilder")}
       {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben nur auf diesem Gerät gespeichert.")}
       {h("Alle Böcke auflegen")}
-      {p("Hat ein Spieler beim Ausspielen nur noch unschlagbare Böcke (kein Gegner hat eine höhere Karte der Farbe, und bei Nicht-Trumpf-Karten hat kein Gegner mehr Trumpf), legt er sie alle auf einmal ab; die anderen geben zu und die restlichen Stiche gehören seinem Team. Bei dir geschieht das automatisch, sobald du in dieser Lage eine Karte spielst.")}
+      {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (kein Gegner hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat kein Gegner mehr Trumpf, und ein laufender Stich ist seinem Team sicher), wirft er alle Karten auf einmal aufs Feld. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Bei dir geschieht das automatisch, sobald du in dieser Lage eine Karte spielst.")}
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
@@ -1617,8 +1652,8 @@ function JassApp() {
   };
   const play = (g, p, c) => {
     // Nur noch Böcke beim Ausspielen: alle auf einmal auflegen
-    if (g.round.phase === "play" && !g.round.trick.length && allBocks(g.round, p)) {
-      say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – die restlichen Stiche gehören " + TEAM[E.team(p)] + ".", 3500);
+    if (g.round.phase === "play" && canClaim(g.round, p)) {
+      say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – alle werfen ihre Karten, der ganze Haufen geht an " + TEAM[E.team(p)] + ".", 3500);
       const ng = doClaim(g, p);
       record(g, ng);
       setSelected(null);
@@ -1773,7 +1808,8 @@ function JassApp() {
   const tapCard = (c) => {
     if (playMode === "swipe") { if (!drag || !drag.moved) say("Karte nach oben auf den Tisch wischen", 1500); return; }
     if (!myTurn) return;
-    if (!legal.includes(c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
+    const claim = canClaim(r, 0); // alle Böcke: jede Karte löst das Auflegen aus
+    if (!claim && !legal.includes(c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
     if (playMode === "tap" || selected === c) play(game, 0, c);
     else setSelected(c);
   };
@@ -1794,7 +1830,7 @@ function JassApp() {
     setDrag(null);
     if (d.dy < -70) {
       if (!myTurn) { say("Du bist noch nicht dran", 1300); return; }
-      if (!legal.includes(d.c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
+      if (!canClaim(r, 0) && !legal.includes(d.c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
       play(game, 0, d.c);
     }
   };
