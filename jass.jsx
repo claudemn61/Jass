@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.6";
+const APP_VERSION = "1.2.7";
 
 const CHANGELOG = [
+  {
+    version: "1.2.7",
+    changes: [
+      "Karten austeilen als Animation: je 3 Karten auf einmal, reihum im Gegenuhrzeigersinn, 3 Umgänge in 5 Sekunden; die Karten erscheinen dabei nach und nach in den Händen",
+    ],
+  },
   {
     version: "1.2.6",
     changes: [
@@ -1192,6 +1198,45 @@ function CardFan({ cards, faceUp, deck, trump, w }) {
   );
 }
 
+// Austeilen: 12 Päckchen à 3 Karten fliegen vom Stapel in der Tischmitte reihum
+// (du, rechts, Partner, links = Gegenuhrzeigersinn), 3 Umgänge; insgesamt 5 s.
+const DEAL_MS = 5000, DEAL_BATCHES = 12, DEAL_FLY = 380;
+const DEAL_GAP = (DEAL_MS - DEAL_FLY) / (DEAL_BATCHES - 1); // Abstand zwischen den Päckchen
+function DealAnim({ w }) {
+  const refs = useRef([]);
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const to = { 0: [0, vh * 0.34], 1: [vw * 0.4, 0], 2: [0, -vh * 0.3], 3: [-vw * 0.4, 0] };
+  useEffect(() => {
+    const anims = [];
+    refs.current.forEach((el, b) => {
+      if (!el) return;
+      const [x, y] = to[b % 4];
+      anims.push(el.animate([
+        { transform: "translate(0px,0px) rotate(0deg) scale(1)", opacity: 1 },
+        { transform: "translate(" + x + "px," + y + "px) rotate(" + (x > 0 ? 14 : x < 0 ? -14 : 0) + "deg) scale(0.8)", opacity: 1, offset: 0.88 },
+        { transform: "translate(" + x + "px," + y + "px) rotate(0deg) scale(0.8)", opacity: 0 },
+      ], { duration: DEAL_FLY, delay: b * DEAL_GAP, easing: "cubic-bezier(.3,.7,.3,1)", fill: "both" }));
+    });
+    return () => anims.forEach((a) => a.cancel());
+  }, []);
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 80, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", left: "50%", top: "48%", width: 0, height: 0 }}>
+        {/* Kartenstapel in der Mitte, wird beim Austeilen kleiner */}
+        <div style={{ position: "absolute", left: -w / 2, top: -w * 0.75, animation: "jassStapel " + DEAL_MS + "ms linear both" }}>
+          <style>{`@keyframes jassStapel { 0% { opacity: 1; transform: scale(1);} 92% { opacity: 1; transform: scale(0.85);} 100% { opacity: 0; transform: scale(0.8);} }`}</style>
+          {[3, 2, 1, 0].map((i) => <div key={i} style={{ position: "absolute", left: i * 1.5, top: i * 1.5 }}><CardBack w={w} /></div>)}
+        </div>
+        {Array.from({ length: DEAL_BATCHES }, (_, b) => (
+          <div key={b} ref={(el) => (refs.current[b] = el)} style={{ position: "absolute", left: -w / 2, top: -w * 0.75, opacity: 0, zIndex: 10 + b }}>
+            {[2, 1, 0].map((i) => <div key={i} style={{ position: "absolute", left: i * 5, top: i * -3 }}><CardBack w={w} /></div>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function useHeight() {
   const [h, setH] = useState(window.innerHeight);
   useEffect(() => { const f = () => setH(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -1840,6 +1885,18 @@ function JassApp() {
   const [party, setParty] = useState(null); // Feier: { text, key }
   const [replay, setReplay] = useState(false); // Replay der letzten Runde offen
   const [claimAnim, setClaimAnim] = useState(null); // Böcke-Auflegen-Animation läuft
+  // Austeilen: step = Anzahl bereits angekommener Päckchen (0..12), perm = Reihenfolge, in der
+  // die eigenen Karten in der Hand erscheinen
+  const [deal, setDeal] = useState(null);
+  const beginDeal = (no) => {
+    const key = Date.now();
+    const perm = [...Array(9).keys()].sort((a, b) => Math.sin((a + 1) * (no + 3) * 12.9898) - Math.sin((b + 1) * (no + 3) * 12.9898));
+    setDeal({ key, step: 0, perm });
+    for (let b = 1; b <= DEAL_BATCHES; b++) setTimeout(() => setDeal((d) => (d && d.key === key ? { ...d, step: b } : d)), (b - 1) * DEAL_GAP + DEAL_FLY);
+    setTimeout(() => setDeal((d) => (d && d.key === key ? null : d)), DEAL_MS + 60);
+  };
+  // Karten, die Sitz q nach d.step Päckchen schon hat (Päckchen b geht an Sitz b % 4)
+  const dealtTo = (q) => (deal ? 3 * Array.from({ length: deal.step }, (_, b) => b).filter((b) => b % 4 === q).length : 9);
   // Stich einziehen: Karten gleiten in 0,5 s zum Gewinner, danach wird eingesammelt
   const [sweep, setSweep] = useState(null); // { winner }
   const sweepBusy = useRef(false);
@@ -1980,7 +2037,7 @@ function JassApp() {
   const claimOn = settings.claimAll !== false; // Einstellung «Bock-Karten spielen»
   // Automatisch mit Verzögerung; im Modus «Manuell» erst beim Tippen auf den Teppich
   useEffect(() => {
-    if (!game || !game.round || home || manual || replay) return; // während des Replays pausiert das Spiel
+    if (!game || !game.round || home || manual || replay || deal) return; // während Replay und Austeilen pausiert das Spiel
     const step = botStep(game);
     if (!step) return;
     const r = game.round;
@@ -1988,9 +2045,10 @@ function JassApp() {
     const delay = r.phase === "trickDone" ? sp.trick / 2 : r.phase === "choose" ? sp.bot * 1.4 : sp.bot;
     const timer = setTimeout(step, delay);
     return () => clearTimeout(timer);
-  }, [game, home, manual, replay]);
+  }, [game, home, manual, replay, deal]);
 
-  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); setGame(newGame(settings)); };
+  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); const ng = newGame(settings); setGame(ng); beginDeal(ng.round.no); };
+  const goNextRound = () => { setEndHidden(false); if (game.over) startNew(); else { const ng = nextRound(game); setGame(ng); beginDeal(ng.round.no); } };
   const askNew = () => {
     if (game && !game.over && (game.history.length || (game.round && game.round.trickNo > 0))) {
       if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen? Die Striche dieses Spiels werden entfernt.")) return;
@@ -2038,7 +2096,8 @@ function JassApp() {
   const r = game.round;
   const myTurn = r.phase === "play" && r.turn === 0;
   const legal = myTurn ? E.legalCards(r.hands[0], r.trick, r.trump) : [];
-  const hand = r.hands[0];
+  // eigene Hand: beim Austeilen erscheinen die Karten nach und nach
+  const hand = deal ? r.hands[0].filter((c, i) => deal.perm.indexOf(i) < dealtTo(0)) : r.hands[0];
 
   // Masse
   // Grosse Bildschirme (iPad): volle Breite bis 1200 px, Karten bis 150 px breit,
@@ -2056,6 +2115,7 @@ function JassApp() {
 
   const playMode = settings.playMode || (settings.oneTap ? "tap" : "confirm");
   const tapCard = (c) => {
+    if (deal) return;
     if (playMode === "swipe") { if (!drag || !drag.moved) say("Karte nach oben auf den Tisch wischen", 1500); return; }
     if (!myTurn) return;
     const claim = claimOn && canClaim(r, 0); // alle Böcke: jede Karte löst das Auflegen aus
@@ -2065,6 +2125,7 @@ function JassApp() {
   };
   // Wischen: Karte folgt dem Finger; nach oben losgelassen (> 70 px) wird sie gespielt
   const dragStart = (e, c) => {
+    if (deal) return;
     if (playMode !== "swipe") return;
     e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({ c, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, moved: false });
@@ -2103,6 +2164,7 @@ function JassApp() {
   const curHolder = curIdx >= 0 ? r.trick[curIdx].p : null;
 
   const status = (() => {
+    if (deal) return "Karten werden verteilt …";
     if (manual && r.phase === "choose" && r.decider !== 0) return NAMES[r.decider] + " wählt – auf den Teppich tippen";
     if (r.phase === "choose") return r.decider === 0 ? (r.pushed ? NAMES[2] + " hat geschoben – du wählst" : "Du bestimmst den Trumpf") : NAMES[r.decider] + " überlegt…" + (r.pushed ? " (geschoben)" : "");
     if (manual && r.phase === "play" && r.turn !== 0) return NAMES[r.turn] + " ist dran – auf den Teppich tippen";
@@ -2164,7 +2226,7 @@ function JassApp() {
           // grün = hält den Stich, Stern = hat den Trumpf angesagt
           <>
             <div style={{ filter: curHolder === p ? "drop-shadow(0 0 8px " + STICH + ") drop-shadow(0 0 3px " + STICH + ")" : active ? "drop-shadow(0 0 8px " + C.gold + ") drop-shadow(0 0 3px " + C.gold + ")" : "none" }}>
-              <CardFan cards={r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
+              <CardFan cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
             </div>
             {/* Name unter den Karten (mit Stern bei Ansage) */}
             <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
@@ -2179,7 +2241,7 @@ function JassApp() {
             {NAMES[p]}{star}
           </div>
         )}
-        {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={r.hands[p]} />}
+        {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} />}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>
@@ -2229,7 +2291,7 @@ function JassApp() {
       </div>
 
       {/* Tisch */}
-      <div onClick={() => { if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone") sweepCollect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
+      <div onClick={() => { if (deal) return; if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone") sweepCollect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
         <Seat p={2} style={{ top: 10, left: "50%", transform: "translateX(-50%)" }} />
         {game.lastRound && game.lastRound.tricks.length > 0 && (
           <button onClick={(ev) => { ev.stopPropagation(); setReplay(true); }} title="Letzte Runde nochmals abspielen"
@@ -2272,7 +2334,7 @@ function JassApp() {
       </div>
 
       {/* Trumpfwahl */}
-      {r.phase === "choose" && r.decider === 0 && (
+      {r.phase === "choose" && r.decider === 0 && !deal && (
         <div style={{ maxWidth: big ? 760 : 560, width: "100%", margin: "0 auto", padding: "0 10px 8px", boxSizing: "border-box" }}>
           {/* Hinweis über den Knöpfen */}
           <div style={{ textAlign: "center", fontSize: 13 * uiK, color: C.gold, fontWeight: 700, marginBottom: 6 }}>{status}</div>
@@ -2298,7 +2360,7 @@ function JassApp() {
       )}
 
       {/* Status + Hand */}
-      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 ? "" : status}</div>
+      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
           {hand.map((c, i) => (
@@ -2324,12 +2386,13 @@ function JassApp() {
           ["Zum Startbildschirm", () => setHome(true)],
         ]} />
       )}
+      {deal && <DealAnim key={deal.key} w={Math.round(cw * 0.55)} />}
       {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
-      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} />}
+      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={goNextRound} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
           <button onClick={() => setEndHidden(false)} style={{ ...btn(false), background: "rgba(10,30,22,0.92)" }}>Abrechnung</button>
-          <button onClick={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} style={btn(true)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
+          <button onClick={goNextRound} style={btn(true)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
         </div>
       )}
       {modal === "claim" && r.claimReport && <ClaimReportModal rep={r.claimReport} deck={deck} onClose={() => setModal(null)} />}
