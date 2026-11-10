@@ -32,6 +32,8 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   (`game.pend`) abgezogen, einzelne Striche manuell löschbar (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
 - Mitspieler am Tisch: iPad gefächerte Karten (`CardFan`) mit Name darunter, iPhone nur der Name; keine Spielerbilder.
+- Einstellung `dealMode` (Austeilen): `geber` (Karten fliegen vom Geber = Spieler vor dem ersten Ansager,
+  ausgeteilt ab dem ersten Ansager), `mitte`, `aus`; Animation 5 s, 12 Päckchen à 3 (`DealAnim`).
 - Einstellung `thank` (Bedanken): `knopf` | `auto` | `aus`, Modulvariable `THANK` in `jass.jsx`.
 - Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
   Computer erhalten diese Information nicht.

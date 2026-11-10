@@ -10,7 +10,7 @@ const CHANGELOG = [
   {
     version: "1.2.7",
     changes: [
-      "Karten austeilen als Animation: je 3 Karten auf einmal, reihum im Gegenuhrzeigersinn, 3 Umgänge in 5 Sekunden; die Karten erscheinen dabei nach und nach in den Händen",
+      "Karten austeilen als Animation: je 3 Karten auf einmal, reihum im Gegenuhrzeigersinn, 3 Umgänge in 5 Sekunden, vom Geber (dem Ansager der Runde davor) oder aus der Mitte (Einstellung «Austeilen»); die Karten erscheinen dabei nach und nach in den Händen",
     ],
   },
   {
@@ -1202,17 +1202,19 @@ function CardFan({ cards, faceUp, deck, trump, w }) {
 // (du, rechts, Partner, links = Gegenuhrzeigersinn), 3 Umgänge; insgesamt 5 s.
 const DEAL_MS = 5000, DEAL_BATCHES = 12, DEAL_FLY = 380;
 const DEAL_GAP = (DEAL_MS - DEAL_FLY) / (DEAL_BATCHES - 1); // Abstand zwischen den Päckchen
-function DealAnim({ w }) {
+function DealAnim({ w, origin, start }) {
   const refs = useRef([]);
   const vw = window.innerWidth, vh = window.innerHeight;
   const to = { 0: [0, vh * 0.34], 1: [vw * 0.4, 0], 2: [0, -vh * 0.3], 3: [-vw * 0.4, 0] };
+  // Ursprung: Sitz des Gebers (= der, der in der Runde davor mit Trumpf/Schieben dran war) oder Tischmitte
+  const [ox, oy] = origin == null ? [0, 0] : [to[origin][0] * 0.8, to[origin][1] * 0.8];
   useEffect(() => {
     const anims = [];
     refs.current.forEach((el, b) => {
       if (!el) return;
-      const [x, y] = to[b % 4];
+      const [x, y] = to[(start + b) % 4];
       anims.push(el.animate([
-        { transform: "translate(0px,0px) rotate(0deg) scale(1)", opacity: 1 },
+        { transform: "translate(" + ox + "px," + oy + "px) rotate(0deg) scale(1)", opacity: 1 },
         { transform: "translate(" + x + "px," + y + "px) rotate(" + (x > 0 ? 14 : x < 0 ? -14 : 0) + "deg) scale(0.8)", opacity: 1, offset: 0.88 },
         { transform: "translate(" + x + "px," + y + "px) rotate(0deg) scale(0.8)", opacity: 0 },
       ], { duration: DEAL_FLY, delay: b * DEAL_GAP, easing: "cubic-bezier(.3,.7,.3,1)", fill: "both" }));
@@ -1222,8 +1224,8 @@ function DealAnim({ w }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 80, pointerEvents: "none" }}>
       <div style={{ position: "absolute", left: "50%", top: "48%", width: 0, height: 0 }}>
-        {/* Kartenstapel in der Mitte, wird beim Austeilen kleiner */}
-        <div style={{ position: "absolute", left: -w / 2, top: -w * 0.75, animation: "jassStapel " + DEAL_MS + "ms linear both" }}>
+        {/* Kartenstapel beim Geber (oder in der Mitte), wird beim Austeilen kleiner */}
+        <div style={{ position: "absolute", left: -w / 2 + ox, top: -w * 0.75 + oy, animation: "jassStapel " + DEAL_MS + "ms linear both" }}>
           <style>{`@keyframes jassStapel { 0% { opacity: 1; transform: scale(1);} 92% { opacity: 1; transform: scale(0.85);} 100% { opacity: 0; transform: scale(0.8);} }`}</style>
           {[3, 2, 1, 0].map((i) => <div key={i} style={{ position: "absolute", left: i * 1.5, top: i * 1.5 }}><CardBack w={w} /></div>)}
         </div>
@@ -1403,6 +1405,9 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
         settings.openCards ? "Die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen." : null)}
       {row("Nicht spielbare Karten", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal zeigen"]]} />,
         settings.dimIllegal === false ? "Alle Karten sehen gleich aus; eine nicht erlaubte Karte lässt sich trotzdem nicht spielen." : null)}
+      {row("Austeilen", <Choice value={settings.dealMode || "geber"} onChange={(v) => set("dealMode", v)} options={[["geber", "Vom Geber"], ["mitte", "Aus der Mitte"], ["aus", "Ohne Animation"]]} />,
+        (settings.dealMode || "geber") === "geber" ? "Die Karten fliegen vom Spieler, der in der Runde davor mit Trumpf/Schieben dran war (dem Geber); ausgeteilt wird reihum ab dem ersten Ansager."
+          : settings.dealMode === "mitte" ? "Die Karten fliegen von einem Stapel in der Tischmitte zu den Spielern." : "Die Karten sind sofort verteilt (5 Sekunden Animation entfallen).")}
       {row("Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Per Knopf"], ["auto", "Automatisch"], ["aus", "Nicht möglich"]]} />,
         (settings.thank || "knopf") === "knopf" ? "Du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren); die Gegner bedanken sich automatisch."
           : settings.thank === "auto" ? "Sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort – für beide Teams, ohne Knopf."
@@ -1888,15 +1893,20 @@ function JassApp() {
   // Austeilen: step = Anzahl bereits angekommener Päckchen (0..12), perm = Reihenfolge, in der
   // die eigenen Karten in der Hand erscheinen
   const [deal, setDeal] = useState(null);
-  const beginDeal = (no) => {
+  // Geber = der Spieler vor dem ersten Ansager (also der, der in der Runde davor mit Trumpf/Schieben
+  // dran war); ausgeteilt wird reihum ab dem ersten Ansager. Einstellung «Austeilen».
+  const beginDeal = (ng) => {
+    const mode = settings.dealMode || "geber";
+    if (mode === "aus") return;
+    const no = ng.round.no, first = ng.round.chooser;
     const key = Date.now();
     const perm = [...Array(9).keys()].sort((a, b) => Math.sin((a + 1) * (no + 3) * 12.9898) - Math.sin((b + 1) * (no + 3) * 12.9898));
-    setDeal({ key, step: 0, perm });
+    setDeal({ key, step: 0, perm, start: first, origin: mode === "geber" ? (first + 3) % 4 : null });
     for (let b = 1; b <= DEAL_BATCHES; b++) setTimeout(() => setDeal((d) => (d && d.key === key ? { ...d, step: b } : d)), (b - 1) * DEAL_GAP + DEAL_FLY);
     setTimeout(() => setDeal((d) => (d && d.key === key ? null : d)), DEAL_MS + 60);
   };
-  // Karten, die Sitz q nach d.step Päckchen schon hat (Päckchen b geht an Sitz b % 4)
-  const dealtTo = (q) => (deal ? 3 * Array.from({ length: deal.step }, (_, b) => b).filter((b) => b % 4 === q).length : 9);
+  // Karten, die Sitz q nach d.step Päckchen schon hat (Päckchen b geht an Sitz (start + b) % 4)
+  const dealtTo = (q) => (deal ? 3 * Array.from({ length: deal.step }, (_, b) => b).filter((b) => (deal.start + b) % 4 === q).length : 9);
   // Stich einziehen: Karten gleiten in 0,5 s zum Gewinner, danach wird eingesammelt
   const [sweep, setSweep] = useState(null); // { winner }
   const sweepBusy = useRef(false);
@@ -2047,8 +2057,8 @@ function JassApp() {
     return () => clearTimeout(timer);
   }, [game, home, manual, replay, deal]);
 
-  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); const ng = newGame(settings); setGame(ng); beginDeal(ng.round.no); };
-  const goNextRound = () => { setEndHidden(false); if (game.over) startNew(); else { const ng = nextRound(game); setGame(ng); beginDeal(ng.round.no); } };
+  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); const ng = newGame(settings); setGame(ng); beginDeal(ng); };
+  const goNextRound = () => { setEndHidden(false); if (game.over) startNew(); else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
   const askNew = () => {
     if (game && !game.over && (game.history.length || (game.round && game.round.trickNo > 0))) {
       if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen? Die Striche dieses Spiels werden entfernt.")) return;
@@ -2386,7 +2396,7 @@ function JassApp() {
           ["Zum Startbildschirm", () => setHome(true)],
         ]} />
       )}
-      {deal && <DealAnim key={deal.key} w={Math.round(cw * 0.55)} />}
+      {deal && <DealAnim key={deal.key} w={Math.round(cw * 0.55)} origin={deal.origin} start={deal.start} />}
       {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
       {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={goNextRound} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (
