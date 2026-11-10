@@ -993,6 +993,50 @@ function ReplayView({ rec, deck, speed, onClose }) {
   );
 }
 
+// Böcke auflegen als kleine Filmszene: die Karten fliegen von den Plätzen
+// nacheinander in die Tischmitte (ca. 1,5 s), bleiben kurz liegen und werden
+// dann zum Team des Gewinners gezogen. Web Animations API, keine Bibliothek.
+function ClaimAnim({ pile, p, deck, trump, w }) {
+  const refs = useRef([]);
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const from = { 0: [0, vh * 0.42], 1: [vw * 0.46, 0], 2: [0, -vh * 0.36], 3: [-vw * 0.46, 0] };
+  const n = pile.length;
+  const step = Math.min(90, 1500 / Math.max(n, 1)); // alle Würfe zusammen ≈ 1,5 s
+  useEffect(() => {
+    const anims = [];
+    refs.current.forEach((el, i) => {
+      if (!el) return;
+      const e = pile[i], [fx, fy] = from[e.p];
+      const tx = Math.sin(i * 2.1) * w * 0.55, ty = Math.cos(i * 1.7) * w * 0.4, rot = (i * 47) % 70 - 35;
+      const [gx, gy] = from[p];
+      const a = el.animate([
+        { transform: "translate(" + fx + "px," + fy + "px) rotate(0deg) scale(0.9)", opacity: 0 },
+        { transform: "translate(" + fx * 0.85 + "px," + fy * 0.85 + "px) rotate(" + rot / 3 + "deg) scale(1)", opacity: 1, offset: 0.12 },
+        { transform: "translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(1)", opacity: 1 },
+      ], { duration: 650, delay: i * step, easing: "cubic-bezier(.2,.75,.25,1)", fill: "forwards" });
+      anims.push(a);
+      // nach kurzer Pause: Haufen zum Gewinner ziehen
+      const b = el.animate([
+        { transform: "translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(1)", opacity: 1 },
+        { transform: "translate(" + gx * 0.9 + "px," + gy * 0.9 + "px) rotate(" + rot / 2 + "deg) scale(0.6)", opacity: 0 },
+      ], { duration: 700, delay: 1500 + 650 + 900 + i * 12, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" });
+      anims.push(b);
+    });
+    return () => anims.forEach((a) => a.cancel());
+  }, []);
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 90, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", left: "50%", top: "48%", width: 0, height: 0 }}>
+        {pile.map((e, i) => (
+          <div key={e.c} ref={(el) => (refs.current[i] = el)} style={{ position: "absolute", left: -w / 2, top: -w * 0.75, opacity: 0, zIndex: i }}>
+            <Card id={e.c} deck={deck} w={w} trump={E.isTrump(e.c, trump)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function useHeight() {
   const [h, setH] = useState(window.innerHeight);
   useEffect(() => { const f = () => setH(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -1592,6 +1636,7 @@ function JassApp() {
   const [drag, setDrag] = useState(null); // Wischen: { c, x0, y0, dx, dy, moved }
   const [party, setParty] = useState(null); // Feier: { text, key }
   const [replay, setReplay] = useState(false); // Replay der letzten Runde offen
+  const [claimAnim, setClaimAnim] = useState(null); // Böcke-Auflegen-Animation läuft
   const partyTimer = useRef(null);
   const celebrate = (text, sad) => {
     clearTimeout(partyTimer.current);
@@ -1655,9 +1700,11 @@ function JassApp() {
     if (g.round.phase === "play" && canClaim(g.round, p)) {
       say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – alle werfen ihre Karten, der ganze Haufen geht an " + TEAM[E.team(p)] + ".", 3500);
       const ng = doClaim(g, p);
-      record(g, ng);
       setSelected(null);
       setGame(ng);
+      // Filmszene, Abrechnung (und ggf. Feier) erst danach
+      setClaimAnim({ pile: ng.round.pile.cards, p, key: Date.now() });
+      setTimeout(() => { setClaimAnim(null); record(g, ng); }, 3900);
       return;
     }
     const ng = doPlay(g, p, c);
@@ -2066,8 +2113,9 @@ function JassApp() {
           ["Zum Startbildschirm", () => setHome(true)],
         ]} />
       )}
-      {r.phase === "roundEnd" && !modal && !endHidden && <RoundEndModal game={game} deck={deck} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} />}
-      {r.phase === "roundEnd" && endHidden && (
+      {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
+      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} />}
+      {r.phase === "roundEnd" && endHidden && !claimAnim && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
           <button onClick={() => setEndHidden(false)} style={{ ...btn(false), background: "rgba(10,30,22,0.92)" }}>Abrechnung</button>
           <button onClick={() => { setEndHidden(false); if (game.over) startNew(); else setGame(nextRound(game)); }} style={btn(true)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
