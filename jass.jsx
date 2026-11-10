@@ -11,7 +11,7 @@ const CHANGELOG = [
     version: "1.1.5",
     changes: [
       "iPad: Kopfzeile mit Teamnamen («x & y») links und rechts, Trumpf in der Mitte",
-      "iPad: runde, grössere Namens-Badges mit Comic-Figur; jede Figur in den Einstellungen selbst zusammenstellbar",
+      "iPad: runde, grössere Namens-Badges; eigenes Foto (JPEG) oder PDF per Antippen ladbar (nur auf dem Gerät gespeichert)",
     ],
   },
   {
@@ -959,21 +959,7 @@ function BackupRow() {
 }
 
 // ── Comic-Figuren für die Namens-Badges (eigene, einfache Zeichnung) ──
-// Jede Figur besteht aus wählbaren Teilen; gespeichert in settings.avatars.
-const AV_OPTS = {
-  bg: ["#3b6e8f", "#8f3b4a", "#5b8f3b", "#8f6d3b", "#6a4b8f", "#2f2f2f"],
-  skin: ["#f6d7b8", "#e9b98f", "#c98d5f", "#8d5a3a", "#5c3a24"],
-  hair: ["kurz", "lang", "locken", "glatze", "zopf", "igel"],
-  hairColor: ["#2b1a10", "#6b3e1a", "#b5793a", "#e2c26a", "#9a9a9a", "#b33a2a"],
-  eyes: ["punkt", "gross", "zwinker", "muede"],
-  mouth: ["lachen", "grinsen", "neutral", "staunen"],
-  beard: ["kein", "schnauz", "vollbart"],
-  glasses: ["keine", "rund", "eckig"],
-  hat: ["kein", "muetze", "zipfel"],
-};
-const AV_LABEL = {
-  bg: "Hintergrund", skin: "Haut", hair: "Frisur", hairColor: "Haarfarbe", eyes: "Augen", mouth: "Mund", beard: "Bart", glasses: "Brille", hat: "Hut",
-};
+// Standard-Figuren für die runden Namens-Badges (wenn kein eigenes Foto geladen ist).
 const DEFAULT_AVATARS = [
   { bg: "#3b6e8f", skin: "#f6d7b8", hair: "kurz", hairColor: "#6b3e1a", eyes: "punkt", mouth: "lachen", beard: "kein", glasses: "keine", hat: "kein" },
   { bg: "#8f3b4a", skin: "#e9b98f", hair: "igel", hairColor: "#2b1a10", eyes: "zwinker", mouth: "grinsen", beard: "schnauz", glasses: "keine", hat: "kein" },
@@ -1040,38 +1026,14 @@ function Avatar({ a, size }) {
   );
 }
 
-function AvatarEditor({ settings, setSettings, who, onClose }) {
-  const avs = (settings.avatars || DEFAULT_AVATARS).map((a, i) => ({ ...DEFAULT_AVATARS[i], ...(a || {}) }));
-  const a = avs[who];
-  const set = (k, v) => { const n = avs.slice(); n[who] = { ...a, [k]: v }; setSettings({ ...settings, avatars: n }); };
-  const random = () => {
-    const n = avs.slice(), pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-    n[who] = Object.fromEntries(Object.keys(AV_OPTS).map((k) => [k, pick(AV_OPTS[k])]));
-    setSettings({ ...settings, avatars: n });
-  };
-  return (
-    <Modal title={"Comic: " + NAMES[who]} onClose={onClose} page>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-        <div style={{ borderRadius: "50%", border: "3px solid " + C.gold, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}><Avatar a={a} size={140} /></div>
-      </div>
-      <div style={{ textAlign: "center", marginBottom: 14 }}><button onClick={random} style={btn(false)}>🎲 Zufällig</button></div>
-      {Object.keys(AV_OPTS).map((k) => (
-        <div key={k} style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: C.dim, marginBottom: 5 }}>{AV_LABEL[k]}</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {AV_OPTS[k].map((v) => (
-              <div key={v} onClick={() => set(k, v)} style={{ cursor: "pointer", borderRadius: "50%", border: "3px solid " + (a[k] === v ? C.gold : "transparent") }}>
-                <Avatar a={{ ...a, [k]: v }} size={46} />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </Modal>
-  );
+// Bild für ein Namens-Badge: eigenes Foto (lokal, IndexedDB "avatar:<Sitz>") oder Standard-Comic
+function PlayerPic({ p, size, imgs }) {
+  const img = imgs && imgs["avatar:" + p];
+  if (img) return <img src={img} alt="" draggable={false} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", display: "block" }} />;
+  return <Avatar a={DEFAULT_AVATARS[p]} size={size} />;
 }
 
-function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAvatar }) {
+function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAvatar, imgs, onAvatarRemove }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   const row = (label, el, hint) => (
     <div style={{ marginBottom: 16 }}>
@@ -1088,8 +1050,9 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAva
             <label key={i} style={{ fontSize: 12, color: C.dim }}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span onClick={(e) => { e.preventDefault(); onAvatar(i); }} style={{ cursor: "pointer", borderRadius: "50%", border: "2px solid " + C.gold }}>
-                  <Avatar a={{ ...DEFAULT_AVATARS[i], ...((settings.avatars || [])[i] || {}) }} size={30} />
+                  <PlayerPic p={i} size={30} imgs={imgs} />
                 </span>
+                {imgs && imgs["avatar:" + i] && <span onClick={(e) => { e.preventDefault(); if (window.confirm("Bild von " + NAMES[i] + " entfernen?")) onAvatarRemove(i); }} style={{ cursor: "pointer", color: C.dim, fontSize: 13 }}>✕</span>}
                 {lab}
               </span>
               <input value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14}
@@ -1098,7 +1061,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAva
             </label>
           ))}
         </div>
-      ), "Leeres Feld = Standardname. Comic-Figur antippen zum Bearbeiten (wird auf dem iPad bei den Spielern gezeigt).")}
+      ), "Leeres Feld = Standardname. Rundes Bild antippen, um ein eigenes Foto (JPEG) oder PDF zu laden – nur auf diesem Gerät gespeichert, auf dem iPad bei den Spielern gezeigt.")}
       {row("Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Deutschschweizer"], ["fr", "Französisch"]]} />)}
       {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
       {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
@@ -1539,7 +1502,23 @@ function JassApp() {
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
   const imgCtx = { on: settings.customImgs, index: settings.imgIndex, map: imgs };
   const wrap = (el) => <CardImgCtx.Provider value={imgCtx}>{el}</CardImgCtx.Provider>;
-  const avatarModal = modal && modal.startsWith("avatar") && <AvatarEditor settings={settings} setSettings={setSettings} who={+modal.slice(6)} onClose={() => setModal("settings")} />;
+  // Badge-Bild laden: Foto oder PDF (erste Seite), nur lokal gespeichert
+  const avatarRef = useRef(null);
+  const avatarWho = useRef(null);
+  const pickAvatar = (i) => { avatarWho.current = i; avatarRef.current && avatarRef.current.click(); };
+  const onAvatarFile = async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!f || avatarWho.current == null) return;
+    try {
+      const files = await expandFiles([f]);
+      const url = await shrinkImage(files[0]);
+      await imgWrite((st) => st.put(url, "avatar:" + avatarWho.current));
+      await reloadImgs();
+    } catch (e) { say("Bild konnte nicht geladen werden: " + (e.message || e), 3000); }
+  };
+  const removeAvatar = async (i) => { await imgWrite((st) => st.delete("avatar:" + i)); await reloadImgs(); };
+  const avatarModal = <input ref={avatarRef} type="file" accept="image/*,application/pdf" onChange={onAvatarFile} style={{ display: "none" }} />;
   const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal("settings")} />;
   useEffect(() => { save("game", game); }, [game]);
   useEffect(() => { save("stats", stats); }, [stats]);
@@ -1679,7 +1658,7 @@ function JassApp() {
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
         <div style={{ color: "rgba(240,240,232,0.55)", fontSize: 12, marginTop: 10, fontFamily: CHALK_FONT }}>v{APP_VERSION}</div>
         </div>
-        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onAvatar={(i) => setModal("avatar" + i)} onClose={() => setModal(null)} />}
+        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onAvatar={pickAvatar} imgs={imgs} onAvatarRemove={removeAvatar} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
         {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
         {imgModal}
@@ -1809,7 +1788,7 @@ function JassApp() {
           // iPad: rundes Badge mit Comic-Figur, Name darunter
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
             <div style={{ borderRadius: "50%", border: "4px solid " + ring, boxShadow: (curHolder === p ? "0 0 14px " + STICH : active ? "0 0 14px " + C.gold : "0 4px 10px rgba(0,0,0,0.5)") }}>
-              <Avatar a={{ ...DEFAULT_AVATARS[p], ...((settings.avatars || [])[p] || {}) }} size={Math.round(64 * uiK)} />
+              <div onClick={(ev) => { ev.stopPropagation(); pickAvatar(p); }} style={{ cursor: "pointer" }}><PlayerPic p={p} size={Math.round(64 * uiK)} imgs={imgs} /></div>
             </div>
             <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 700 }}>{NAMES[p]}{star}</div>
           </div>
@@ -1961,7 +1940,7 @@ function JassApp() {
       {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
         onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
-      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onAvatar={(i) => setModal("avatar" + i)} onClose={() => setModal(null)} />}
+      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onAvatar={pickAvatar} imgs={imgs} onAvatarRemove={removeAvatar} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
       {party && (party.sad ? <Frustration key={party.key} text={party.text} /> : <Celebration key={party.key} text={party.text} />)}
