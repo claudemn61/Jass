@@ -11,7 +11,7 @@ const CHANGELOG = [
     version: "1.2.5",
     changes: [
       "Böcke auflegen: Szene gestrafft, Abrechnung nach höchstens 3 Sekunden",
-      "Nach jedem Stich wird der Kartenstapel in 1 Sekunde zum Gewinner gezogen",
+      "Nach jedem Stich wird der Kartenstapel in einer halben Sekunde zum Gewinner gezogen",
     ],
   },
   {
@@ -1644,7 +1644,7 @@ function JassApp() {
   const [party, setParty] = useState(null); // Feier: { text, key }
   const [replay, setReplay] = useState(false); // Replay der letzten Runde offen
   const [claimAnim, setClaimAnim] = useState(null); // Böcke-Auflegen-Animation läuft
-  // Stich einziehen: Karten gleiten in 1 s zum Gewinner, danach wird eingesammelt
+  // Stich einziehen: Karten gleiten in 0,5 s zum Gewinner, danach wird eingesammelt
   const [sweep, setSweep] = useState(null); // { winner }
   const sweepBusy = useRef(false);
   const sweepCollect = (g) => {
@@ -1655,7 +1655,7 @@ function JassApp() {
     setTimeout(() => {
       sweepBusy.current = false; setSweep(null);
       if (gameRef.current === g) collect(g); // nur, wenn inzwischen nichts anderes geschah (z.B. Bedanken)
-    }, 1000);
+    }, 500);
   };
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -2066,7 +2066,7 @@ function JassApp() {
             <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, zIndex: i,
               transform: sweep && r.phase === "trickDone" ? sweepPos(sweep.winner, i) : trickPos(e.p),
               opacity: sweep && r.phase === "trickDone" ? 0 : 1,
-              transition: sweep && r.phase === "trickDone" ? "transform 1s cubic-bezier(.5,0,.75,.6), opacity 1s ease-in" : "transform 0.2s", filter: i === curIdx ? "drop-shadow(0 0 4px " + STICH + ") drop-shadow(0 0 2px " + STICH + ")" : winnerIdx >= 0 ? "brightness(0.8)" : "none" }}>
+              transition: sweep && r.phase === "trickDone" ? "transform 0.5s cubic-bezier(.5,0,.75,.6), opacity 0.5s ease-in" : "transform 0.2s", filter: i === curIdx ? "drop-shadow(0 0 4px " + STICH + ") drop-shadow(0 0 2px " + STICH + ")" : winnerIdx >= 0 ? "brightness(0.8)" : "none" }}>
               <Card id={e.c} deck={deck} w={tw} trump={E.isTrump(e.c, r.trump)} />
             </div>
           ))}
