@@ -4,9 +4,16 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.1.5";
+const APP_VERSION = "1.2.0";
 
 const CHANGELOG = [
+  {
+    version: "1.2.0",
+    changes: [
+      "Eigene Farbsymbole: je ein Bild für die vier Farben sowie die Pfeile für Obenabe und Undenufe laden (Bild oder PDF) – sie ersetzen die gezeichneten Symbole überall; nur auf dem Gerät gespeichert",
+      "Kopfzeile ohne «/ Zielpunkte», Trumpf nur noch als Symbol bzw. Pfeil",
+    ],
+  },
   {
     version: "1.1.5",
     changes: [
@@ -215,6 +222,9 @@ function describeWeis(w, deck) {
 
 // ── Grafik ──
 function SuitIcon({ s, deck, size }) {
+  const ctx = useContext(CardImgCtx);
+  const own = ctx.on && ctx.map["icon:" + deck + ":" + s];
+  if (own) return <img src={own} alt="" draggable={false} style={{ width: size, height: size, objectFit: "contain", display: "block" }} />;
   if (deck === "fr") {
     const sym = ["♦", "♥", "♠", "♣"][s];
     return <span style={{ fontSize: size, lineHeight: 1, color: s < 2 ? C.red : "#111", fontFamily: "Georgia, serif" }}>{sym}</span>;
@@ -256,7 +266,10 @@ function SuitIcon({ s, deck, size }) {
 }
 
 function ModeIcon({ t, deck, size }) {
+  const ctx = useContext(CardImgCtx);
   if (t < 4) return <SuitIcon s={t} deck={deck} size={size} />;
+  const own = ctx.on && ctx.map[t === 4 ? "icon:obe" : "icon:unde"];
+  if (own) return <img src={own} alt="" draggable={false} style={{ width: size, height: size, objectFit: "contain", display: "block" }} />;
   return <span style={{ fontSize: size * 0.8, fontWeight: 800, color: C.gold, lineHeight: 1 }}>{t === 4 ? "▲" : "▼"}</span>;
 }
 
@@ -484,6 +497,21 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
     } catch (e) { setBusy("Fehler: " + (e.message || e)); }
   };
   const removeBack = async () => { await imgWrite((st) => st.delete("back")); await reload(); };
+  // Farbsymbole: 4 Farben (je Kartensatz) + Pfeile Obenabe/Undenufe
+  const iconRef = useRef(null);
+  const iconKey = useRef(null);
+  const ICONS = [0, 1, 2, 3].map((s) => ["icon:" + deck + ":" + s, SUIT_NAMES[deck][s]]).concat([["icon:obe", "Obenabe"], ["icon:unde", "Undenufe"]]);
+  const onIcon = async (ev) => {
+    const files = await pick(ev);
+    if (!files.length || !iconKey.current) return;
+    try {
+      const url = await shrinkImage(files[0]);
+      await imgWrite((st) => st.put(url, iconKey.current));
+      await reload();
+      setBusy(null);
+    } catch (e) { setBusy("Fehler: " + (e.message || e)); }
+  };
+  const removeIcon = async (k) => { await imgWrite((st) => st.delete(k)); await reload(); };
   const onSingle = async (ev) => {
     const id = slotRef.current;
     const files = await pick(ev);
@@ -562,6 +590,21 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
       <input ref={groupsRef} type="file" accept="image/*,application/pdf" multiple onChange={onGroups} style={{ display: "none" }} />
       <input ref={groupRef} type="file" accept="image/*,application/pdf" onChange={onGroup} style={{ display: "none" }} />
       <input ref={backRef} type="file" accept="image/*,application/pdf" onChange={onBack} style={{ display: "none" }} />
+
+      <input ref={iconRef} type="file" accept="image/*,application/pdf" onChange={onIcon} style={{ display: "none" }} />
+      <div style={{ fontWeight: 800, color: C.gold, fontSize: 14, marginBottom: 6 }}>Farbsymbole</div>
+      <div style={{ fontSize: 12, color: C.dim, marginBottom: 8 }}>Je ein Bild pro Farbe und für die Pfeile Obenabe/Undenufe – ersetzt die gezeichneten Symbole überall. Feld antippen zum Laden, ✕ zum Entfernen.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginBottom: 14 }}>
+        {ICONS.map(([k, lab], i) => (
+          <div key={k} style={{ textAlign: "center" }}>
+            <div onClick={() => { iconKey.current = k; iconRef.current.click(); }} style={{ aspectRatio: "1 / 1", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,0.9)", border: "1px solid " + C.line, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              {imgs[k] ? <img src={imgs[k]} alt="" style={{ width: "85%", height: "85%", objectFit: "contain" }} />
+                : i < 4 ? <SuitIcon s={i} deck={deck} size={26} /> : <ModeIcon t={i} deck={deck} size={26} />}
+            </div>
+            <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{lab}{imgs[k] && <span onClick={() => removeIcon(k)} style={{ marginLeft: 3, cursor: "pointer", color: C.text }}>✕</span>}</div>
+          </div>
+        ))}
+      </div>
 
       <div style={{ fontWeight: 800, color: C.gold, fontSize: 14, marginBottom: 6 }}>Rückseite</div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -1041,6 +1084,8 @@ function RulesModal({ onClose, deck }) {
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. Spätestens am Rundenende wird abgerechnet.")}
       {h("Offene Karten (Lernmodus)")}
       {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
+      {h("Eigene Bilder")}
+      {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben nur auf diesem Gerät gespeichert.")}
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
@@ -1762,13 +1807,13 @@ function JassApp() {
             <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
               {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
                 <div key="t" style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 12px", borderRadius: 20, fontSize: 14, visibility: r.trump != null ? "visible" : "hidden" }}>
-                  {r.trump != null && <><ModeIcon t={r.trump} deck={deck} size={18} /><span style={{ fontWeight: 700 }}>{modeName(r.trump, deck)}</span><span style={{ color: C.dim }}>×{E.multiplier(r.trump, game.mult)}</span></>}
+                  {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={24} />}
                 </div>
               ) : (
                 <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
                   <span style={{ fontSize: 13, color: C.dim, overflow: "hidden", textOverflow: "ellipsis" }}>{teamName(t)}</span>
                   <span style={{ fontSize: 19, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{game.scores[t]}</span>
-                  <span style={{ fontSize: 11, color: C.dim }}>{game.scores[t] > 1500 && game.scores[t] < game.target ? "−" + (game.target - game.scores[t]) : "/ " + game.target}</span>
+                  {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim }}>−{game.target - game.scores[t]}</span>}
                 </div>
               ))}
             </div>
@@ -1782,13 +1827,10 @@ function JassApp() {
                 {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim, marginLeft: 2 }}>−{game.target - game.scores[t]}</span>}
               </div>
             ))}
-            {!game.scores.some((x) => x > 1500 && x < game.target) && <div style={{ fontSize: 11, color: C.dim }}>/ {game.target}</div>}
           </div>
           {r.trump != null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 10px", borderRadius: 20, fontSize: 13 }}>
-              <ModeIcon t={r.trump} deck={deck} size={18} />
-              <span style={{ fontWeight: 700 }}>{modeName(r.trump, deck)}</span>
-              <span style={{ color: C.dim }}>×{E.multiplier(r.trump, game.mult)}</span>
+            <div title={modeName(r.trump, deck)} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20 }}>
+              <ModeIcon t={r.trump} deck={deck} size={22} />
             </div>
           )}
           </>)}

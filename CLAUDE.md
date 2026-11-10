@@ -25,12 +25,14 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
   (`game.pend`) abgezogen, einzelne Striche manuell löschbar (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
 - Namens-Badges (iPad, rund): eigenes Foto/PDF je Spieler lokal in IndexedDB `jass-bilder` unter
-  `avatar:<Sitz>` (ist damit auch im Backup), sonst farbiger Kreis mit dem Namen (`PlayerPic`).
+  `avatar:<Sitz>` (ist damit auch im Backup), sonst leerer Kreis mit dem Namen darin (`PlayerPic`).
 - Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
   Computer erhalten diese Information nicht.
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB
   `jass-bilder`, niemals ins Repo (urheberrechtlich geschützt, Repo ist öffentlich).
+- Eigene Farbsymbole: IndexedDB-Keys `icon:<deck>:<farbe>`, `icon:obe`, `icon:unde`; `SuitIcon`/`ModeIcon`
+  verwenden sie (wenn «Eigene Bilder verwenden» an) überall statt der gezeichneten Symbole.
 - Backup (Einstellungen → Backup): JSON-Datei mit allen `jass:`-Keys und den Kartenbildern aus
   IndexedDB; Teilen über `navigator.share` (Fallback Download). Neue dauerhafte Daten immer mit
   Präfix `jass:` speichern, sonst fehlen sie im Backup.
