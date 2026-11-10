@@ -304,7 +304,7 @@ function Card({ id, deck, w, onClick, dim, raised, trump }) {
         outline: trump ? "2px solid " + C.gold : "none", outlineOffset: -2, position: "relative",
         cursor: onClick ? "pointer" : "default", opacity: dim ? 0.5 : 1, filter: dim ? "grayscale(0.6)" : "none",
         userSelect: "none", WebkitUserSelect: "none",
-        transform: raised ? "translateY(-14px)" : "none", transition: "transform 0.12s",
+        transform: raised ? "translateY(-14px)" : "none", transition: "transform 0.12s", textShadow: "none",
       }}>
         <img src={img} draggable={false} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }} />
         {imgCtx.index && (
@@ -322,7 +322,7 @@ function Card({ id, deck, w, onClick, dim, raised, trump }) {
       boxShadow: raised ? "0 6px 14px rgba(0,0,0,0.5)" : "0 2px 5px rgba(0,0,0,0.45)",
       border: trump ? "2px solid " + C.gold : "1px solid #bbb", boxSizing: "border-box", position: "relative",
       cursor: onClick ? "pointer" : "default", opacity: dim ? 0.55 : 1, userSelect: "none", WebkitUserSelect: "none",
-      transform: raised ? "translateY(-14px)" : "none", transition: "transform 0.12s",
+      transform: raised ? "translateY(-14px)" : "none", transition: "transform 0.12s", textShadow: "none",
     }}>
       <div style={{ position: "absolute", left: w * 0.07, top: w * 0.05, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <span style={{ fontSize: w * 0.3, fontWeight: 700, color: col, lineHeight: 1, fontFamily: "Georgia, serif" }}>{label}</span>
@@ -785,12 +785,12 @@ function StartSlate() {
 
 // Spielteppich: grüner Filz, abgegriffen (hellere, abgewetzte Stellen dort,
 // wo Karten gespielt und Stiche eingezogen werden), Flecken, dunkle Ränder.
-// Spielteppich: Foto eines echten Jassteppichs (filz.jpg), mit leichter
-// Abdunkelung zum Rand hin.
+// Spielteppich: Foto eines echten Jassteppichs (filz.jpg, leicht nachgeschärft),
+// nur mit einem leichten Schatten ganz am Rand.
 function FeltBackground() {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: -1, pointerEvents: "none",
-      background: "radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.45) 100%), linear-gradient(rgba(0,0,0,0.18), rgba(0,0,0,0.18)), url(filz.jpg) center / cover" }} />
+      background: "radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.22) 100%), linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.1)), url(filz.jpg) center / cover" }} />
   );
 }
 
@@ -1845,7 +1845,7 @@ function JassApp() {
   };
 
   return wrap(
-    <div style={{ height: "100%", background: C.felt2, position: "relative", zIndex: 0, color: C.text, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <div style={{ height: "100%", background: C.felt2, position: "relative", zIndex: 0, color: C.text, textShadow: "0 1px 3px rgba(0,0,0,0.85)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <FeltBackground />
       {/* Kopfzeile */}
       <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)", paddingBottom: 4, background: "rgba(0,0,0,0.45)", borderBottom: "1px solid " + C.line }}>
