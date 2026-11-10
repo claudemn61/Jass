@@ -2121,7 +2121,9 @@ function JassApp() {
   const handW = cw + step * Math.max(0, hand.length - 1);
   // Trumpfwahl: Breite eines der 7 Knöpfe (Zeile max. 560/760 px, 10 px Rand, 6 px Abstand)
   const chooseIcon = Math.round(((Math.min(vw, big ? 760 : 560) - 20 - 6 * 6) / 7) * 0.82);
-  const tw = Math.round(cw * (big && vw > vh ? 0.72 : 0.92)), th = Math.round(tw * 1.5); // iPad quer: Stichkarten kleiner, damit sie nicht an die Plätze stossen
+  // gelegte Karten (Stich): iPhone 1,08×, iPad hoch 1,05×, iPad quer 0,86× der Handkartenbreite
+  // (quer begrenzt, damit sie nicht an die Plätze stossen)
+  const tw = Math.round(cw * (big ? (vw > vh ? 0.86 : 1.05) : 1.08)), th = Math.round(tw * 1.5);
 
   const playMode = settings.playMode || (settings.oneTap ? "tap" : "confirm");
   const tapCard = (c) => {
