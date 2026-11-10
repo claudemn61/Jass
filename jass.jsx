@@ -4,9 +4,16 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.7";
+const APP_VERSION = "1.3.0";
 
 const CHANGELOG = [
+  {
+    version: "1.3.0",
+    changes: [
+      "Einstellung «Weis»: Hast du einen Weis, fragt die App vor deiner ersten Karte nach, ob du wirklich weisen willst; Partner und Gegner entscheiden im Hintergrund nach der Spielsituation",
+      "Einstellung «Kartensortierung»: deine Hand von links nach rechts (Standard) oder von rechts nach links",
+    ],
+  },
   {
     version: "1.2.7",
     changes: [
@@ -142,6 +149,8 @@ let NAMES = DEFAULT_NAMES.slice();
 // Einstellung «Bedanken»: "knopf" (du per Knopf, Gegner automatisch), "auto" (wer das Ziel erreicht,
 // gewinnt sofort, ohne Knopf) oder "aus" (nur Abrechnung am Rundenende); wird in JassApp gesetzt.
 let THANK = "knopf";
+// Einstellung «Weis nachfragen»: der Mensch entscheidet selbst, Partner/Gegner die App im Hintergrund
+let WEISASK = false;
 const teamName = (t) => NAMES[t] + " & " + NAMES[t + 2];
 // «Du wählst» vs. «Anna wählt»
 const verb = (p, du, er) => (p === 0 && NAMES[0] === "Du" ? du : er);
@@ -171,15 +180,43 @@ function doPush(g) {
   const r = g.round;
   return { ...g, round: { ...r, pushed: true, decider: (r.chooser + 2) % 4 } };
 }
+// Weisen die Computer-Spieler? Entscheidung im Hintergrund nach der Spielsituation:
+// - ab 50 Punkten immer
+// - sonst (Dreiblatt, 20): ja, ausser es verrät hohe Trümpfe (Under/Nell), und weder das eigene Team
+//   noch die Gegner sind nahe am Ziel (dann zählt jeder Punkt)
+function botWeisDecision(g, p, hand, t) {
+  const ws = E.findWeis(hand);
+  if (!ws.length) return true;
+  const pts = ws.reduce((s, w) => s + w.pts, 0);
+  if (pts >= 50) return true;
+  const mult = E.multiplier(t, g.mult), tm = E.team(p);
+  const near = (sc) => sc + 140 * mult >= g.target;
+  if (near(g.scores[tm]) || near(g.scores[1 - tm])) return true;
+  const verraetTrumpf = t < 4 && ws.some((w) => w.type === "seq" && w.s === t && w.lo <= 5 && w.hi >= 3);
+  return !verraetTrumpf;
+}
 function doChoose(g, t) {
   const r = g.round;
+  let weis, extra = {};
+  if (WEISASK) {
+    // Computer entscheiden jetzt; deine Entscheidung (falls du einen Weis hast) folgt vor deiner ersten Karte
+    const skip = [false, 1, 2, 3].map((q) => (q === false ? false : !botWeisDecision(g, q, r.start[q], t)));
+    weis = E.resolveWeis(r.start, t, r.chooser, skip);
+    extra = { weisSkip: skip, weisPending: E.findWeis(r.start[0]).length > 0 };
+  } else weis = E.resolveWeis(r.start, t, r.chooser);
   return {
     ...g,
     round: {
       ...r, trump: t, phase: "play", turn: r.chooser, hands: r.hands.map((h) => E.sortHand(h, t)),
-      weis: E.resolveWeis(r.start, t, r.chooser), stoeck: E.findStoeck(r.start, t),
+      weis, stoeck: E.findStoeck(r.start, t), ...extra,
     },
   };
+}
+// Deine Weis-Entscheidung anwenden
+function applyHumanWeis(g, ja) {
+  const r = g.round;
+  const skip = (r.weisSkip || [false, false, false, false]).slice(); skip[0] = !ja;
+  return { ...g, round: { ...r, weisPending: false, weisSkip: skip, weis: E.resolveWeis(r.start, r.trump, r.chooser, skip) } };
 }
 function doPlay(g, p, c) {
   const r = g.round;
@@ -1408,6 +1445,10 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
       {row("Austeilen", <Choice value={settings.dealMode || "geber"} onChange={(v) => set("dealMode", v)} options={[["geber", "Vom Geber"], ["mitte", "Aus der Mitte"], ["aus", "Ohne Animation"]]} />,
         (settings.dealMode || "geber") === "geber" ? "Die Karten fliegen vom Spieler, der in der Runde davor mit Trumpf/Schieben dran war (dem Geber); ausgeteilt wird reihum ab dem ersten Ansager."
           : settings.dealMode === "mitte" ? "Die Karten fliegen von einem Stapel in der Tischmitte zu den Spielern." : "Die Karten sind sofort verteilt (5 Sekunden Animation entfallen).")}
+      {row("Weis", <Choice value={!!settings.weisAsk} onChange={(v) => set("weisAsk", v)} options={[[false, "Automatisch"], [true, "Nachfragen"]]} />,
+        settings.weisAsk ? "Hast du einen Weis, fragt die App vor deiner ersten Karte nach, ob du weisen willst. Partner und Gegner entscheiden im Hintergrund nach der Spielsituation (nicht jeder Weis wird gezeigt)." : "Alle Weise werden automatisch angesagt.")}
+      {row("Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Links → rechts"], ["rl", "Rechts → links"]]} />,
+        "Reihenfolge deiner Hand: Eicheln, Rosen, Schilten, Schellen (Trumpf zuerst), je von hoch nach tief – von links nach rechts oder umgekehrt.")}
       {row("Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Per Knopf"], ["auto", "Automatisch"], ["aus", "Nicht möglich"]]} />,
         (settings.thank || "knopf") === "knopf" ? "Du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren); die Gegner bedanken sich automatisch."
           : settings.thank === "auto" ? "Sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort – für beide Teams, ohne Knopf."
@@ -1441,6 +1482,8 @@ function RulesModal({ onClose, deck }) {
       {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
       {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben nur auf diesem Gerät gespeichert.")}
+      {h("Weisen nachfragen")}
+      {p("Stellst du «Weis» auf «Nachfragen», fragt die App vor deiner ersten Karte, ob du wirklich weisen willst. Partner und Gegner entscheiden im Hintergrund: Weise ab 50 Punkten werden immer angesagt, ein Dreiblatt nur, wenn es keine hohen Trümpfe verrät oder ein Team nahe am Ziel ist. Ein nicht angesagter Weis zählt nicht und wird nicht gezeigt.")}
       {h("Alle Böcke auflegen")}
       {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (keiner der anderen drei Spieler hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat sonst niemand mehr Trumpf, und einen laufenden Stich gewinnt er selbst sicher, sodass er danach ausspielt; ihm gehören also alle restlichen Stiche), wirft er alle Karten auf einmal aufs Feld. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Bei dir geschieht das automatisch, sobald du in dieser Lage eine Karte spielst.")}
       {h("Zeichen am Tisch")}
@@ -1757,6 +1800,27 @@ function InfoModal({ stats, onClose }) {
   );
 }
 
+function WeisAskModal({ ws, deck, onAnswer }) {
+  const pts = ws.reduce((s, w) => s + w.pts, 0);
+  return (
+    <Modal title="Weisen?" wide>
+      <div style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 10 }}>Du hast {ws.length > 1 ? "folgende Weise" : "einen Weis"}:</div>
+      {ws.map((w, i) => (
+        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "1px solid " + C.line, fontSize: 15 }}>
+          <span>{describeWeis(w, deck)}</span><b style={{ color: C.gold }}>{w.pts}</b>
+        </div>
+      ))}
+      <div style={{ fontSize: 13, color: C.dim, margin: "10px 0 14px", lineHeight: 1.5 }}>
+        Zusammen {pts} Punkte. Es schreibt nur das Team mit dem höchsten Weis; die Karten werden nach dem ersten Stich allen gezeigt.
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={() => onAnswer(true)} style={{ ...btn(true), flex: 1 }}>Weisen</button>
+        <button onClick={() => onAnswer(false)} style={{ ...btn(false), flex: 1 }}>Nicht weisen</button>
+      </div>
+    </Modal>
+  );
+}
+
 function ClaimReportModal({ rep, deck, onClose }) {
   const t = rep.trump;
   const cards = (arr, w) => (
@@ -1890,6 +1954,7 @@ function JassApp() {
   const [party, setParty] = useState(null); // Feier: { text, key }
   const [replay, setReplay] = useState(false); // Replay der letzten Runde offen
   const [claimAnim, setClaimAnim] = useState(null); // Böcke-Auflegen-Animation läuft
+  const [weisAsk, setWeisAsk] = useState(null); // Rückfrage «wirklich weisen?»: { c } = Karte, die danach gespielt wird
   // Austeilen: step = Anzahl bereits angekommener Päckchen (0..12), perm = Reihenfolge, in der
   // die eigenen Karten in der Hand erscheinen
   const [deal, setDeal] = useState(null);
@@ -1936,6 +2001,7 @@ function JassApp() {
   const vh = useHeight();
   const deck = settings.deck;
   THANK = settings.thank || "knopf";
+  WEISASK = !!settings.weisAsk;
   NAMES = [0, 1, 2, 3].map((i) => ((settings.names && settings.names[i]) || "").trim() || DEFAULT_NAMES[i]);
   const sp = SPEEDS[settings.speed] || SPEEDS.normal;
 
@@ -2107,7 +2173,8 @@ function JassApp() {
   const myTurn = r.phase === "play" && r.turn === 0;
   const legal = myTurn ? E.legalCards(r.hands[0], r.trick, r.trump) : [];
   // eigene Hand: beim Austeilen erscheinen die Karten nach und nach
-  const hand = deal ? r.hands[0].filter((c, i) => deal.perm.indexOf(i) < dealtTo(0)) : r.hands[0];
+  const handLR = deal ? r.hands[0].filter((c, i) => deal.perm.indexOf(i) < dealtTo(0)) : r.hands[0];
+  const hand = settings.sortDir === "rl" ? handLR.slice().reverse() : handLR; // Einstellung «Kartensortierung»
 
   // Masse
   // Grosse Bildschirme (iPad): volle Breite bis 1200 px, Karten bis 150 px breit,
@@ -2126,13 +2193,23 @@ function JassApp() {
   const tw = Math.round(cw * (big ? (vw > vh ? 0.86 : 1.05) : 1.08)), th = Math.round(tw * 1.5);
 
   const playMode = settings.playMode || (settings.oneTap ? "tap" : "confirm");
+  // Eigene Karte spielen; vor der ersten Karte der Runde ggf. nach dem Weis fragen
+  const humanPlay = (c) => {
+    if (WEISASK && r.weisPending && r.phase === "play" && r.hands[0].length === 9) { setWeisAsk({ c }); return; }
+    play(game, 0, c);
+  };
+  const answerWeis = (ja) => {
+    const c = weisAsk.c;
+    setWeisAsk(null);
+    play(applyHumanWeis(game, ja), 0, c);
+  };
   const tapCard = (c) => {
     if (deal) return;
     if (playMode === "swipe") { if (!drag || !drag.moved) say("Karte nach oben auf den Tisch wischen", 1500); return; }
     if (!myTurn) return;
     const claim = claimOn && canClaim(r, 0); // alle Böcke: jede Karte löst das Auflegen aus
     if (!claim && !legal.includes(c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
-    if (playMode === "tap" || selected === c) play(game, 0, c);
+    if (playMode === "tap" || selected === c) humanPlay(c);
     else setSelected(c);
   };
   // Wischen: Karte folgt dem Finger; nach oben losgelassen (> 70 px) wird sie gespielt
@@ -2154,7 +2231,7 @@ function JassApp() {
     if (d.dy < -70) {
       if (!myTurn) { say("Du bist noch nicht dran", 1300); return; }
       if (!(claimOn && canClaim(r, 0)) && !legal.includes(d.c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
-      play(game, 0, d.c);
+      humanPlay(d.c);
     }
   };
 
@@ -2399,6 +2476,7 @@ function JassApp() {
         ]} />
       )}
       {deal && <DealAnim key={deal.key} w={Math.round(cw * 0.55)} origin={deal.origin} start={deal.start} />}
+      {weisAsk && <WeisAskModal ws={E.findWeis(r.start[0])} deck={deck} onAnswer={answerWeis} />}
       {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
       {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={goNextRound} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (

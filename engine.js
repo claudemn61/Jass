@@ -106,8 +106,9 @@
 
   // Nur das Team mit dem höchsten Einzelweis schreibt (alle seine Weise).
   // Gleichstand: wer in der Spielreihenfolge früher dran ist, gewinnt.
-  function resolveWeis(hands, t, leader) {
-    const byPlayer = hands.map((h) => findWeis(h));
+  // skip (optional): Spieler, die ihren Weis nicht ansagen, sind nicht beteiligt
+  function resolveWeis(hands, t, leader, skip) {
+    const byPlayer = hands.map((h, p) => (skip && skip[p] ? [] : findWeis(h)));
     let bestP = -1, bestKey = null;
     for (let k = 0; k < 4; k++) {
       const p = (leader + k) % 4;

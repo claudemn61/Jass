@@ -34,6 +34,8 @@ Schieber-Jass als PWA von claudemn61, gleiches Architekturmuster wie Tauchbuch/F
 - Mitspieler am Tisch: iPad gefächerte Karten (`CardFan`) mit Name darunter, iPhone nur der Name; keine Spielerbilder.
 - Einstellung `dealMode` (Austeilen): `geber` (Karten fliegen vom Geber = Spieler vor dem ersten Ansager,
   ausgeteilt ab dem ersten Ansager), `mitte`, `aus`; Animation 5 s, 12 Päckchen à 3 (`DealAnim`).
+- Einstellungen `weisAsk` (Rückfrage vor deiner ersten Karte; Computer entscheiden per `botWeisDecision`;
+  `WEISASK`, `applyHumanWeis`, `E.resolveWeis(..., skip)`) und `sortDir` (`lr`|`rl`, Handsortierung).
 - Einstellung `thank` (Bedanken): `knopf` | `auto` | `aus`, Modulvariable `THANK` in `jass.jsx`.
 - Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
   Computer erhalten diese Information nicht.
