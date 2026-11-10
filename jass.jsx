@@ -1231,6 +1231,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAva
         settings.openCards ? "Die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen." : null)}
       {row("Nicht spielbare Karten", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal zeigen"]]} />,
         settings.dimIllegal === false ? "Alle Karten sehen gleich aus; eine nicht erlaubte Karte lässt sich trotzdem nicht spielen." : null)}
+      {row("Bock-Karten spielen", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Alle gleichzeitig"], [false, "Einzeln"]]} />,
+        settings.claimAll !== false ? "Hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin; der Haufen geht an sein Team." : "Auch mit lauter Böcken wird jede Karte einzeln gespielt (gilt für alle Spieler).")}
       {row("Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "Antippen + bestätigen"], ["tap", "Ein Tipp"], ["swipe", "Wischen"]]} />,
         (settings.playMode === "swipe") ? "Karte mit dem Finger aus der Hand nach oben auf den Tisch ziehen." : null)}
     </Modal>
@@ -1719,7 +1721,7 @@ function JassApp() {
   };
   const play = (g, p, c) => {
     // Nur noch Böcke beim Ausspielen: alle auf einmal auflegen
-    if (g.round.phase === "play" && canClaim(g.round, p)) {
+    if (g.round.phase === "play" && claimOn && canClaim(g.round, p)) {
       say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – alle werfen ihre Karten, der ganze Haufen geht an " + TEAM[E.team(p)] + ".", 3500);
       const ng = doClaim(g, p);
       setSelected(null);
@@ -1797,6 +1799,7 @@ function JassApp() {
     return null;
   };
   const manual = settings.speed === "manuell";
+  const claimOn = settings.claimAll !== false; // Einstellung «Bock-Karten spielen»
   // Automatisch mit Verzögerung; im Modus «Manuell» erst beim Tippen auf den Teppich
   useEffect(() => {
     if (!game || !game.round || home || manual || replay) return; // während des Replays pausiert das Spiel
@@ -1878,7 +1881,7 @@ function JassApp() {
   const tapCard = (c) => {
     if (playMode === "swipe") { if (!drag || !drag.moved) say("Karte nach oben auf den Tisch wischen", 1500); return; }
     if (!myTurn) return;
-    const claim = canClaim(r, 0); // alle Böcke: jede Karte löst das Auflegen aus
+    const claim = claimOn && canClaim(r, 0); // alle Böcke: jede Karte löst das Auflegen aus
     if (!claim && !legal.includes(c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
     if (playMode === "tap" || selected === c) play(game, 0, c);
     else setSelected(c);
@@ -1900,7 +1903,7 @@ function JassApp() {
     setDrag(null);
     if (d.dy < -70) {
       if (!myTurn) { say("Du bist noch nicht dran", 1300); return; }
-      if (!canClaim(r, 0) && !legal.includes(d.c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
+      if (!(claimOn && canClaim(r, 0)) && !legal.includes(d.c)) { say("Diese Karte ist nicht erlaubt", 1500); return; }
       play(game, 0, d.c);
     }
   };
