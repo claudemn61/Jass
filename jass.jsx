@@ -1100,6 +1100,25 @@ function ClaimAnim({ pile, p, nTrick, deck, trump, w }) {
   );
 }
 
+// Gefächert gehaltene Karten eines Mitspielers (iPad): Rückseiten, Anzahl =
+// tatsächliche Handkarten; im Lernmodus «Offene Karten» mit Vorderseite.
+function CardFan({ cards, faceUp, deck, trump, w }) {
+  const n = cards.length;
+  const span = Math.min(66, 8 * Math.max(n - 1, 0));
+  return (
+    <div style={{ position: "relative", width: Math.round(w * 3.2), height: Math.round(w * 1.55), marginBottom: Math.round(w * 0.3) }}>
+      {cards.map((c, i) => {
+        const a = n > 1 ? -span / 2 + (i * span) / (n - 1) : 0;
+        return (
+          <div key={faceUp ? c : i} style={{ position: "absolute", left: "50%", bottom: 0, marginLeft: -w / 2, transformOrigin: "50% 140%", transform: "rotate(" + a + "deg)", zIndex: i, transition: "transform 0.25s" }}>
+            {faceUp ? <Card id={c} deck={deck} w={w} trump={trump != null && E.isTrump(c, trump)} /> : <CardBack w={w} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function useHeight() {
   const [h, setH] = useState(window.innerHeight);
   useEffect(() => { const f = () => setH(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -2036,20 +2055,16 @@ function JassApp() {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
     const star = isDecider ? (r.pushed ? " ☆" : " ★") : "";
-    const ring = curHolder === p ? STICH : active ? C.gold : E.team(p) === 0 ? "rgba(244,196,48,0.55)" : "rgba(255,255,255,0.35)";
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
         {big ? (
-          // iPad: rundes Badge mit Comic-Figur, Name darunter
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <div style={{ borderRadius: "50%", border: "4px solid " + ring, boxShadow: (curHolder === p ? "0 0 14px " + STICH : active ? "0 0 14px " + C.gold : "0 4px 10px rgba(0,0,0,0.5)") }}>
-              <div onClick={(ev) => { ev.stopPropagation(); pickAvatar(p); }} style={{ cursor: "pointer" }}><PlayerPic p={p} size={Math.round(64 * uiK)} imgs={imgs} /></div>
-            </div>
-            {/* Name unter dem Badge nur, wenn ein eigenes Bild geladen ist; sonst steht er im Kreis */}
-            {imgs["avatar:" + p] ? (
-              <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400 }}>{NAMES[p]}{star}</div>
-            ) : star ? <div style={{ fontSize: 16 * uiK, color: C.gold, lineHeight: 1 }}>{star.trim()}</div> : null}
-          </div>
+          // iPad: gefächerte Karten (Rückseiten, echte Anzahl), Name darunter
+          <>
+            <CardFan cards={r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
+            <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
+              border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
+              boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>{NAMES[p]}{star}</div>
+          </>
         ) : (
         <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
           border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
@@ -2057,8 +2072,8 @@ function JassApp() {
           {NAMES[p]}{star}
         </div>
         )}
-        <div style={{ fontSize: 11 * uiK, color: C.dim }}>{r.hands[p].length} Karten</div>
-        {settings.openCards && r.hands[p].length > 0 && <OpenHand cards={r.hands[p]} />}
+        {!big && <div style={{ fontSize: 11 * uiK, color: C.dim }}>{r.hands[p].length} Karten</div>}
+        {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={r.hands[p]} />}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>
