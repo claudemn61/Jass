@@ -1803,7 +1803,8 @@ function JassApp() {
     const step = botStep(game);
     if (!step) return;
     const r = game.round;
-    const delay = r.phase === "trickDone" ? sp.trick : r.phase === "choose" ? sp.bot * 1.4 : sp.bot;
+    // Pause nach der letzten Karte des Stichs bis zum Einziehen: halbe Stich-Zeit
+    const delay = r.phase === "trickDone" ? sp.trick / 2 : r.phase === "choose" ? sp.bot * 1.4 : sp.bot;
     const timer = setTimeout(step, delay);
     return () => clearTimeout(timer);
   }, [game, home, manual, replay]);
