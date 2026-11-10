@@ -4,9 +4,17 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.1.2";
+const APP_VERSION = "1.1.3";
 
 const CHANGELOG = [
+  {
+    version: "1.1.3",
+    changes: [
+      "Kopfzeile höher, damit der obere Rand nicht unter der Statusleiste verschwimmt",
+      "Ab 1500 Punkten zeigt die Kopfzeile, wie viele Punkte bis zum Ziel noch fehlen",
+      "Spielteppich dunkler und gleichmässiger",
+    ],
+  },
   {
     version: "1.1.2",
     changes: [
@@ -729,18 +737,18 @@ function FeltBackground() {
     <svg viewBox="0 0 400 800" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: -1, pointerEvents: "none" }}>
       <defs>
         <radialGradient id="filz" cx="50%" cy="45%" r="75%">
-          <stop offset="0%" stopColor="#17573f" /><stop offset="60%" stopColor="#0f3d2e" /><stop offset="100%" stopColor="#07221a" />
+          <stop offset="0%" stopColor="#0f4231" /><stop offset="70%" stopColor="#0b3326" /><stop offset="100%" stopColor="#06201a" />
         </radialGradient>
         <filter id="filzfaser">
           <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="5" />
-          <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 1  0 0 0 0 0.85  0 0 0 0.13 0" />
+          <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 1  0 0 0 0 0.85  0 0 0 0.08 0" />
         </filter>
         <filter id="filzwolken">
           <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="9" />
-          <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.22 0" />
+          <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.10 0" />
         </filter>
         <radialGradient id="abgewetzt">
-          <stop offset="0%" stopColor="rgba(190,215,170,0.17)" /><stop offset="60%" stopColor="rgba(190,215,170,0.07)" /><stop offset="100%" stopColor="rgba(190,215,170,0)" />
+          <stop offset="0%" stopColor="rgba(190,215,170,0.06)" /><stop offset="60%" stopColor="rgba(190,215,170,0.025)" /><stop offset="100%" stopColor="rgba(190,215,170,0)" />
         </radialGradient>
       </defs>
       <rect width="400" height="800" fill="url(#filz)" />
@@ -1617,13 +1625,19 @@ function JassApp() {
     <div style={{ height: "100%", background: C.felt2, position: "relative", zIndex: 0, color: C.text, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <FeltBackground />
       {/* Kopfzeile */}
-      <div style={{ paddingTop: "env(safe-area-inset-top, 0px)", background: "rgba(0,0,0,0.25)", borderBottom: "1px solid " + C.line }}>
+      <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)", paddingBottom: 4, background: "rgba(0,0,0,0.45)", borderBottom: "1px solid " + C.line }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", maxWidth: MAXW, margin: "0 auto", boxSizing: "border-box", zoom: uiK }}>
           <button onClick={() => setMenu(true)} style={{ background: "none", border: "none", color: C.text, fontSize: 22, cursor: "pointer", padding: "0 6px" }}>☰</button>
-          <div onClick={() => setModal("tafel")} style={{ flex: 1, display: "flex", gap: 14, cursor: "pointer", alignItems: "baseline" }}>
-            <div><span style={{ fontSize: 11, color: C.dim }}>Wir </span><span style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{game.scores[0]}</span></div>
-            <div><span style={{ fontSize: 11, color: C.dim }}>Ihr </span><span style={{ fontSize: 18, fontWeight: 800 }}>{game.scores[1]}</span></div>
-            <div style={{ fontSize: 11, color: C.dim }}>/ {game.target}</div>
+          <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, cursor: "pointer", alignItems: "baseline", whiteSpace: "nowrap", overflow: "hidden" }}>
+            {/* ab 1500 Punkten zusätzlich: wie viel fehlt bis zum Ziel */}
+            {[0, 1].map((t) => (
+              <div key={t}>
+                <span style={{ fontSize: 11, color: C.dim }}>{t === 0 ? "Wir " : "Ihr "}</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{game.scores[t]}</span>
+                {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim, marginLeft: 2 }}>−{game.target - game.scores[t]}</span>}
+              </div>
+            ))}
+            {!game.scores.some((x) => x > 1500 && x < game.target) && <div style={{ fontSize: 11, color: C.dim }}>/ {game.target}</div>}
           </div>
           {r.trump != null && (
             <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 10px", borderRadius: 20, fontSize: 13 }}>
