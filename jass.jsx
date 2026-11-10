@@ -4,9 +4,16 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.4";
+const APP_VERSION = "1.2.5";
 
 const CHANGELOG = [
+  {
+    version: "1.2.5",
+    changes: [
+      "Böcke auflegen: Szene gestrafft, Abrechnung nach höchstens 3 Sekunden",
+      "Nach jedem Stich wird der Kartenstapel in 1 Sekunde zum Gewinner gezogen",
+    ],
+  },
   {
     version: "1.2.4",
     changes: [
@@ -1001,7 +1008,7 @@ function ClaimAnim({ pile, p, deck, trump, w }) {
   const vw = window.innerWidth, vh = window.innerHeight;
   const from = { 0: [0, vh * 0.42], 1: [vw * 0.46, 0], 2: [0, -vh * 0.36], 3: [-vw * 0.46, 0] };
   const n = pile.length;
-  const step = Math.min(90, 1500 / Math.max(n, 1)); // alle Würfe zusammen ≈ 1,5 s
+  const step = Math.min(70, 1100 / Math.max(n, 1)); // Würfe gestaffelt über ≈ 1,1 s
   useEffect(() => {
     const anims = [];
     refs.current.forEach((el, i) => {
@@ -1013,13 +1020,13 @@ function ClaimAnim({ pile, p, deck, trump, w }) {
         { transform: "translate(" + fx + "px," + fy + "px) rotate(0deg) scale(0.9)", opacity: 0 },
         { transform: "translate(" + fx * 0.85 + "px," + fy * 0.85 + "px) rotate(" + rot / 3 + "deg) scale(1)", opacity: 1, offset: 0.12 },
         { transform: "translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(1)", opacity: 1 },
-      ], { duration: 650, delay: i * step, easing: "cubic-bezier(.2,.75,.25,1)", fill: "forwards" });
+      ], { duration: 500, delay: i * step, easing: "cubic-bezier(.2,.75,.25,1)", fill: "forwards" });
       anims.push(a);
       // nach kurzer Pause: Haufen zum Gewinner ziehen
       const b = el.animate([
         { transform: "translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(1)", opacity: 1 },
         { transform: "translate(" + gx * 0.9 + "px," + gy * 0.9 + "px) rotate(" + rot / 2 + "deg) scale(0.6)", opacity: 0 },
-      ], { duration: 700, delay: 1500 + 650 + 900 + i * 12, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" });
+      ], { duration: 600, delay: 1900 + i * 8, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" });
       anims.push(b);
     });
     return () => anims.forEach((a) => a.cancel());
@@ -1637,6 +1644,21 @@ function JassApp() {
   const [party, setParty] = useState(null); // Feier: { text, key }
   const [replay, setReplay] = useState(false); // Replay der letzten Runde offen
   const [claimAnim, setClaimAnim] = useState(null); // Böcke-Auflegen-Animation läuft
+  // Stich einziehen: Karten gleiten in 1 s zum Gewinner, danach wird eingesammelt
+  const [sweep, setSweep] = useState(null); // { winner }
+  const sweepBusy = useRef(false);
+  const sweepCollect = (g) => {
+    if (sweepBusy.current) return;
+    sweepBusy.current = true;
+    const tr = g.round.trick;
+    setSweep({ winner: tr[E.trickWinnerIdx(tr, g.round.trump)].p });
+    setTimeout(() => {
+      sweepBusy.current = false; setSweep(null);
+      if (gameRef.current === g) collect(g); // nur, wenn inzwischen nichts anderes geschah (z.B. Bedanken)
+    }, 1000);
+  };
+  const gameRef = useRef(game);
+  gameRef.current = game;
   const partyTimer = useRef(null);
   const celebrate = (text, sad) => {
     clearTimeout(partyTimer.current);
@@ -1704,7 +1726,7 @@ function JassApp() {
       setGame(ng);
       // Filmszene, Abrechnung (und ggf. Feier) erst danach
       setClaimAnim({ pile: ng.round.pile.cards, p, key: Date.now() });
-      setTimeout(() => { setClaimAnim(null); record(g, ng); }, 3900);
+      setTimeout(() => { setClaimAnim(null); record(g, ng); }, 2800); // Abrechnung spätestens nach 3 s
       return;
     }
     const ng = doPlay(g, p, c);
@@ -1771,7 +1793,7 @@ function JassApp() {
       const c = settings.level !== "normal" && r.tricksLog && r.tricksLog.length === r.trickNo ? E.botPlaySmart(ctx) : E.botPlay(ctx);
       play(g, r.turn, c);
     };
-    if (r.phase === "trickDone") return () => collect(g);
+    if (r.phase === "trickDone") return () => sweepCollect(g);
     return null;
   };
   const manual = settings.speed === "manuell";
@@ -1889,6 +1911,11 @@ function JassApp() {
     return "translate(" + dx + "px," + dy + "px) rotate(" + rot + "deg)";
   };
   const winnerIdx = r.phase === "trickDone" ? E.trickWinnerIdx(r.trick, r.trump) : -1;
+  // Zielposition beim Einziehen: Richtung Platz des Gewinners, Karten zusammengeschoben
+  const sweepPos = (w, i) => {
+    const d = { 0: [0, vh * 0.38], 1: [vw * 0.42, 0], 2: [0, -vh * 0.34], 3: [-vw * 0.42, 0] }[w];
+    return "translate(" + (d[0] + i * 2) + "px," + (d[1] + i * 2) + "px) rotate(" + (i * 4 - 6) + "deg) scale(0.55)";
+  };
   // Wem gehört der Stich im Moment? (grün markiert: Karte in der Mitte und Spieler)
   const STICH = "#4ade80";
   const curIdx = r.trick.length ? E.trickWinnerIdx(r.trick, r.trump) : -1;
@@ -2021,7 +2048,7 @@ function JassApp() {
       </div>
 
       {/* Tisch */}
-      <div onClick={() => { if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone") collect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
+      <div onClick={() => { if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone") sweepCollect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
         <Seat p={2} style={{ top: 10, left: "50%", transform: "translateX(-50%)" }} />
         {game.lastRound && game.lastRound.tricks.length > 0 && (
           <button onClick={(ev) => { ev.stopPropagation(); setReplay(true); }} title="Letzte Runde nochmals abspielen"
@@ -2036,7 +2063,10 @@ function JassApp() {
         <Seat p={1} style={{ top: "42%", right: 8 }} />
         <div style={{ position: "absolute", left: "50%", top: big && vw > vh ? "57%" : "50%", width: 0, height: 0 }}>
           {r.trick.map((e, i) => (
-            <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, transform: trickPos(e.p), zIndex: i, transition: "transform 0.2s", filter: i === curIdx ? "drop-shadow(0 0 4px " + STICH + ") drop-shadow(0 0 2px " + STICH + ")" : winnerIdx >= 0 ? "brightness(0.8)" : "none" }}>
+            <div key={e.c} style={{ position: "absolute", left: -tw / 2, top: -th / 2, zIndex: i,
+              transform: sweep && r.phase === "trickDone" ? sweepPos(sweep.winner, i) : trickPos(e.p),
+              opacity: sweep && r.phase === "trickDone" ? 0 : 1,
+              transition: sweep && r.phase === "trickDone" ? "transform 1s cubic-bezier(.5,0,.75,.6), opacity 1s ease-in" : "transform 0.2s", filter: i === curIdx ? "drop-shadow(0 0 4px " + STICH + ") drop-shadow(0 0 2px " + STICH + ")" : winnerIdx >= 0 ? "brightness(0.8)" : "none" }}>
               <Card id={e.c} deck={deck} w={tw} trump={E.isTrump(e.c, r.trump)} />
             </div>
           ))}
