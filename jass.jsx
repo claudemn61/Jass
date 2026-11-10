@@ -2160,13 +2160,16 @@ function JassApp() {
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
         {big ? (
-          // iPad: nur die gefächerten Karten (Rückseiten, echte Anzahl); Markierungen: gelb = am Zug,
+          // iPad: gefächerte Karten (Rückseiten, echte Anzahl), Name darunter; Markierungen: gelb = am Zug,
           // grün = hält den Stich, Stern = hat den Trumpf angesagt
           <>
             <div style={{ filter: curHolder === p ? "drop-shadow(0 0 8px " + STICH + ") drop-shadow(0 0 3px " + STICH + ")" : active ? "drop-shadow(0 0 8px " + C.gold + ") drop-shadow(0 0 3px " + C.gold + ")" : "none" }}>
               <CardFan cards={r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
             </div>
-            {star && <div style={{ fontSize: 16 * uiK, color: C.gold, lineHeight: 1 }}>{star.trim()}</div>}
+            {/* Name unter den Karten (mit Stern bei Ansage) */}
+            <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
+              border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
+              boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>{NAMES[p]}{star}</div>
           </>
         ) : (
           // iPhone: nur der Name
