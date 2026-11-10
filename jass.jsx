@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.2.2";
+const APP_VERSION = "1.2.3";
 
 const CHANGELOG = [
+  {
+    version: "1.2.3",
+    changes: [
+      "Hat ein Spieler beim Ausspielen nur noch unschlagbare Böcke, legt er sie alle auf einmal ab und die restlichen Stiche laufen automatisch durch (bei dir beim Spielen einer Karte, bei den Computern automatisch)",
+    ],
+  },
   {
     version: "1.2.2",
     changes: [
@@ -192,6 +198,40 @@ function finishRound(g, rUpd, res, winner, extra) {
     over: winner != null ? { winner } : null,
     round: { ...r, trick: [], turn: null, phase: "roundEnd", result: res, ...(extra || {}) },
   };
+}
+
+// Hat Spieler p beim Ausspielen nur noch unschlagbare Böcke? (mind. 2 Karten)
+// Bock = kein Gegner hat eine höhere Karte dieser Farbe; Nicht-Trumpf-Karten
+// zählen nur, wenn kein Gegner mehr Trumpf hat (er könnte sonst stechen).
+function allBocks(r, p) {
+  const t = r.trump, hand = r.hands[p];
+  if (t == null || r.trick.length || hand.length < 2) return false;
+  const opp = [1, 3].flatMap((k) => r.hands[(p + k) % 4]);
+  const oppTrump = t < 4 && opp.some((c) => E.isTrump(c, t));
+  const st = (x) => (t === E.UNDE ? 8 - E.rankOf(x) : E.rankOf(x));
+  return hand.every((c) => {
+    if (E.isTrump(c, t)) return !opp.some((o) => E.isTrump(o, t) && E.TRUMP_STR[E.rankOf(o)] > E.TRUMP_STR[E.rankOf(c)]);
+    if (oppTrump) return false;
+    return !opp.some((o) => E.suitOf(o) === E.suitOf(c) && st(o) > st(c));
+  });
+}
+
+// Alle Böcke auflegen: die restlichen Stiche werden sofort durchgespielt –
+// der Spieler legt seine Karten (Trümpfe zuerst, starke vor schwachen), die
+// anderen geben nach den Regeln zu. Abrechnung wie gewohnt (inkl. Match).
+function doClaim(g, p) {
+  let ng = g;
+  const order = (h, t) => E.sortHand(h, t);
+  for (let guard = 0; guard < 60 && ng.round.phase !== "roundEnd"; guard++) {
+    const r = ng.round;
+    if (r.phase === "trickDone") { ng = doCollect(ng); continue; }
+    const q = r.turn;
+    let c;
+    if (q === p) c = order(r.hands[q], r.trump).find((x) => E.legalCards(r.hands[q], r.trick, r.trump).includes(x));
+    else c = E.botPlay({ hand: r.hands[q], trick: r.trick, t: r.trump, played: r.played, p: q, declarer: r.chooser, tricks: r.tricksLog });
+    ng = doPlay(ng, q, c);
+  }
+  return ng;
 }
 
 function doCollect(g) {
@@ -1132,6 +1172,8 @@ function RulesModal({ onClose, deck }) {
       {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
       {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben nur auf diesem Gerät gespeichert.")}
+      {h("Alle Böcke auflegen")}
+      {p("Hat ein Spieler beim Ausspielen nur noch unschlagbare Böcke (kein Gegner hat eine höhere Karte der Farbe, und bei Nicht-Trumpf-Karten hat kein Gegner mehr Trumpf), legt er sie alle auf einmal ab; die anderen geben zu und die restlichen Stiche gehören seinem Team. Bei dir geschieht das automatisch, sobald du in dieser Lage eine Karte spielst.")}
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
@@ -1574,6 +1616,15 @@ function JassApp() {
     setGame(doPush(g));
   };
   const play = (g, p, c) => {
+    // Nur noch Böcke beim Ausspielen: alle auf einmal auflegen
+    if (g.round.phase === "play" && !g.round.trick.length && allBocks(g.round, p)) {
+      say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – die restlichen Stiche gehören " + TEAM[E.team(p)] + ".", 3500);
+      const ng = doClaim(g, p);
+      record(g, ng);
+      setSelected(null);
+      setGame(ng);
+      return;
+    }
     const ng = doPlay(g, p, c);
     if (ng.round.stoeckDone && !g.round.stoeckDone) say(NAMES[p] + ": Stöck! (+20)");
     setSelected(null);
