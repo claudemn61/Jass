@@ -964,10 +964,10 @@ function PlayerPic({ p, size, imgs }) {
   const img = imgs && imgs["avatar:" + p];
   if (img) return <img src={img} alt="" draggable={false} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", display: "block" }} />;
   const name = NAMES[p] || "";
-  const fs = Math.min(size * 0.42, (size * 1.5) / Math.max(name.length, 1));
+  const fs = Math.min(size * 0.3, (size * 1.25) / Math.max(name.length, 1));
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", background: "rgba(0,0,0,0.35)",
-      display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: fs, textShadow: "0 1px 3px rgba(0,0,0,0.5)", overflow: "hidden", whiteSpace: "nowrap" }}>
+      display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 400, fontSize: fs, textShadow: "0 1px 3px rgba(0,0,0,0.5)", overflow: "hidden", whiteSpace: "nowrap" }}>
       {name}
     </div>
   );
