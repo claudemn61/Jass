@@ -4,9 +4,16 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "1.1.4";
+const APP_VERSION = "1.1.5";
 
 const CHANGELOG = [
+  {
+    version: "1.1.5",
+    changes: [
+      "iPad: Kopfzeile mit Teamnamen («x & y») links und rechts, Trumpf in der Mitte",
+      "iPad: runde, grössere Namens-Badges mit Comic-Figur; jede Figur in den Einstellungen selbst zusammenstellbar",
+    ],
+  },
   {
     version: "1.1.4",
     changes: [
@@ -951,7 +958,120 @@ function BackupRow() {
   );
 }
 
-function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
+// ── Comic-Figuren für die Namens-Badges (eigene, einfache Zeichnung) ──
+// Jede Figur besteht aus wählbaren Teilen; gespeichert in settings.avatars.
+const AV_OPTS = {
+  bg: ["#3b6e8f", "#8f3b4a", "#5b8f3b", "#8f6d3b", "#6a4b8f", "#2f2f2f"],
+  skin: ["#f6d7b8", "#e9b98f", "#c98d5f", "#8d5a3a", "#5c3a24"],
+  hair: ["kurz", "lang", "locken", "glatze", "zopf", "igel"],
+  hairColor: ["#2b1a10", "#6b3e1a", "#b5793a", "#e2c26a", "#9a9a9a", "#b33a2a"],
+  eyes: ["punkt", "gross", "zwinker", "muede"],
+  mouth: ["lachen", "grinsen", "neutral", "staunen"],
+  beard: ["kein", "schnauz", "vollbart"],
+  glasses: ["keine", "rund", "eckig"],
+  hat: ["kein", "muetze", "zipfel"],
+};
+const AV_LABEL = {
+  bg: "Hintergrund", skin: "Haut", hair: "Frisur", hairColor: "Haarfarbe", eyes: "Augen", mouth: "Mund", beard: "Bart", glasses: "Brille", hat: "Hut",
+};
+const DEFAULT_AVATARS = [
+  { bg: "#3b6e8f", skin: "#f6d7b8", hair: "kurz", hairColor: "#6b3e1a", eyes: "punkt", mouth: "lachen", beard: "kein", glasses: "keine", hat: "kein" },
+  { bg: "#8f3b4a", skin: "#e9b98f", hair: "igel", hairColor: "#2b1a10", eyes: "zwinker", mouth: "grinsen", beard: "schnauz", glasses: "keine", hat: "kein" },
+  { bg: "#5b8f3b", skin: "#f6d7b8", hair: "zopf", hairColor: "#e2c26a", eyes: "gross", mouth: "lachen", beard: "kein", glasses: "rund", hat: "kein" },
+  { bg: "#8f6d3b", skin: "#c98d5f", hair: "glatze", hairColor: "#9a9a9a", eyes: "muede", mouth: "neutral", beard: "vollbart", glasses: "eckig", hat: "muetze" },
+];
+
+function Avatar({ a, size }) {
+  a = a || DEFAULT_AVATARS[0];
+  const hc = a.hairColor, sk = a.skin;
+  const hairBack = a.hair === "lang" ? <path d="M24 44 Q22 82 34 88 L66 88 Q78 82 76 44 Z" fill={hc} />
+    : a.hair === "zopf" ? <g><path d="M27 44 Q26 60 30 66 L70 66 Q74 60 73 44 Z" fill={hc} /><ellipse cx="78" cy="62" rx="7" ry="12" fill={hc} /></g> : null;
+  const hairFront = {
+    kurz: <path d="M27 46 Q28 22 50 21 Q72 22 73 46 Q66 34 50 33 Q34 34 27 46 Z" fill={hc} />,
+    lang: <path d="M26 48 Q26 20 50 20 Q74 20 74 48 Q70 32 56 30 Q44 38 30 40 Z" fill={hc} />,
+    locken: <g fill={hc}>{[[30, 36], [38, 26], [50, 22], [62, 26], [70, 36], [27, 46], [73, 46]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="9" />)}</g>,
+    glatze: <path d="M27 50 Q26 44 30 42 M73 50 Q74 44 70 42" stroke={hc} strokeWidth="4" fill="none" strokeLinecap="round" />,
+    zopf: <path d="M27 46 Q28 22 50 21 Q72 22 73 46 Q62 30 40 34 Q32 38 27 46 Z" fill={hc} />,
+    igel: <path d="M28 44 L30 28 L36 36 L40 20 L46 32 L50 16 L54 32 L60 20 L64 36 L70 28 L72 44 Z" fill={hc} />,
+  }[a.hair];
+  const eye = (x) => ({
+    punkt: <circle cx={x} cy="52" r="3" fill="#1d1d1d" />,
+    gross: <g><circle cx={x} cy="52" r="6" fill="#fff" stroke="#1d1d1d" strokeWidth="1.2" /><circle cx={x + 1} cy="53" r="3" fill="#1d1d1d" /></g>,
+    zwinker: x < 50 ? <path d={"M" + (x - 5) + " 52 Q" + x + " 48 " + (x + 5) + " 52"} stroke="#1d1d1d" strokeWidth="2.4" fill="none" strokeLinecap="round" /> : <circle cx={x} cy="52" r="3" fill="#1d1d1d" />,
+    muede: <g><circle cx={x} cy="53" r="3" fill="#1d1d1d" /><path d={"M" + (x - 5) + " 51 L" + (x + 5) + " 51"} stroke={sk} strokeWidth="3" /><path d={"M" + (x - 5) + " 50 L" + (x + 5) + " 50"} stroke="#1d1d1d" strokeWidth="1.4" /></g>,
+  }[a.eyes]);
+  const mouth = {
+    lachen: <path d="M40 66 Q50 76 60 66 Z" fill="#7a2020" stroke="#1d1d1d" strokeWidth="1.5" strokeLinejoin="round" />,
+    grinsen: <path d="M39 67 Q52 74 61 64" stroke="#1d1d1d" strokeWidth="2.5" fill="none" strokeLinecap="round" />,
+    neutral: <path d="M42 68 L58 68" stroke="#1d1d1d" strokeWidth="2.5" strokeLinecap="round" />,
+    staunen: <ellipse cx="50" cy="68" rx="4" ry="5" fill="#7a2020" stroke="#1d1d1d" strokeWidth="1.5" />,
+  }[a.mouth];
+  const beard = {
+    kein: null,
+    schnauz: <path d="M38 63 Q44 58 50 62 Q56 58 62 63 Q56 66 50 64 Q44 66 38 63 Z" fill={hc} />,
+    vollbart: <path d="M28 54 Q28 84 50 86 Q72 84 72 54 Q68 70 58 72 Q50 64 42 72 Q32 70 28 54 Z" fill={hc} />,
+  }[a.beard];
+  const glasses = {
+    keine: null,
+    rund: <g stroke="#1d1d1d" strokeWidth="2" fill="rgba(255,255,255,0.25)"><circle cx="40" cy="52" r="8" /><circle cx="60" cy="52" r="8" /><path d="M48 52 L52 52" /></g>,
+    eckig: <g stroke="#1d1d1d" strokeWidth="2" fill="rgba(255,255,255,0.25)"><rect x="31" y="46" width="17" height="12" rx="2" /><rect x="52" y="46" width="17" height="12" rx="2" /><path d="M48 51 L52 51" /></g>,
+  }[a.glasses];
+  const hat = {
+    kein: null,
+    muetze: <g><path d="M26 40 Q28 16 50 16 Q72 16 74 40 Z" fill="#c0392b" /><rect x="24" y="36" width="52" height="8" rx="4" fill="#f4f1e8" /></g>,
+    zipfel: <g><path d="M28 40 Q40 10 70 6 Q62 22 72 40 Z" fill="#2c6e49" /><circle cx="70" cy="6" r="5" fill="#f4f1e8" /><rect x="26" y="36" width="48" height="7" rx="3.5" fill="#f4f1e8" /></g>,
+  }[a.hat];
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} style={{ display: "block", borderRadius: "50%" }}>
+      <circle cx="50" cy="50" r="50" fill={a.bg} />
+      {hairBack}
+      <rect x="43" y="74" width="14" height="10" fill={sk} />
+      <path d="M22 100 Q24 82 50 82 Q76 82 78 100 Z" fill="rgba(255,255,255,0.85)" />
+      <ellipse cx="26" cy="55" rx="5" ry="7" fill={sk} /><ellipse cx="74" cy="55" rx="5" ry="7" fill={sk} />
+      <ellipse cx="50" cy="54" rx="23" ry="26" fill={sk} />
+      {beard}
+      {eye(40)}{eye(60)}
+      <path d="M50 56 Q47 62 51 63" stroke="rgba(0,0,0,0.35)" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      {mouth}
+      {hairFront}
+      {glasses}
+      {hat}
+    </svg>
+  );
+}
+
+function AvatarEditor({ settings, setSettings, who, onClose }) {
+  const avs = (settings.avatars || DEFAULT_AVATARS).map((a, i) => ({ ...DEFAULT_AVATARS[i], ...(a || {}) }));
+  const a = avs[who];
+  const set = (k, v) => { const n = avs.slice(); n[who] = { ...a, [k]: v }; setSettings({ ...settings, avatars: n }); };
+  const random = () => {
+    const n = avs.slice(), pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    n[who] = Object.fromEntries(Object.keys(AV_OPTS).map((k) => [k, pick(AV_OPTS[k])]));
+    setSettings({ ...settings, avatars: n });
+  };
+  return (
+    <Modal title={"Comic: " + NAMES[who]} onClose={onClose} page>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <div style={{ borderRadius: "50%", border: "3px solid " + C.gold, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}><Avatar a={a} size={140} /></div>
+      </div>
+      <div style={{ textAlign: "center", marginBottom: 14 }}><button onClick={random} style={btn(false)}>🎲 Zufällig</button></div>
+      {Object.keys(AV_OPTS).map((k) => (
+        <div key={k} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: C.dim, marginBottom: 5 }}>{AV_LABEL[k]}</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {AV_OPTS[k].map((v) => (
+              <div key={v} onClick={() => set(k, v)} style={{ cursor: "pointer", borderRadius: "50%", border: "3px solid " + (a[k] === v ? C.gold : "transparent") }}>
+                <Avatar a={{ ...a, [k]: v }} size={46} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </Modal>
+  );
+}
+
+function SettingsModal({ settings, setSettings, onClose, inGame, onImages, onAvatar }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   const row = (label, el, hint) => (
     <div style={{ marginBottom: 16 }}>
@@ -966,14 +1086,19 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {[[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]].map(([i, lab]) => (
             <label key={i} style={{ fontSize: 12, color: C.dim }}>
-              {lab}
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span onClick={(e) => { e.preventDefault(); onAvatar(i); }} style={{ cursor: "pointer", borderRadius: "50%", border: "2px solid " + C.gold }}>
+                  <Avatar a={{ ...DEFAULT_AVATARS[i], ...((settings.avatars || [])[i] || {}) }} size={30} />
+                </span>
+                {lab}
+              </span>
               <input value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14}
                 onChange={(e) => { const n = (settings.names || DEFAULT_NAMES).slice(); n[i] = e.target.value; set("names", n); }}
                 style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 3, padding: "8px 10px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 15, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
             </label>
           ))}
         </div>
-      ), "Leeres Feld = Standardname.")}
+      ), "Leeres Feld = Standardname. Comic-Figur antippen zum Bearbeiten (wird auf dem iPad bei den Spielern gezeigt).")}
       {row("Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Deutschschweizer"], ["fr", "Französisch"]]} />)}
       {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
       {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
@@ -1414,6 +1539,7 @@ function JassApp() {
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
   const imgCtx = { on: settings.customImgs, index: settings.imgIndex, map: imgs };
   const wrap = (el) => <CardImgCtx.Provider value={imgCtx}>{el}</CardImgCtx.Provider>;
+  const avatarModal = modal && modal.startsWith("avatar") && <AvatarEditor settings={settings} setSettings={setSettings} who={+modal.slice(6)} onClose={() => setModal("settings")} />;
   const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal("settings")} />;
   useEffect(() => { save("game", game); }, [game]);
   useEffect(() => { save("stats", stats); }, [stats]);
@@ -1553,10 +1679,11 @@ function JassApp() {
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
         <div style={{ color: "rgba(240,240,232,0.55)", fontSize: 12, marginTop: 10, fontFamily: CHALK_FONT }}>v{APP_VERSION}</div>
         </div>
-        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onClose={() => setModal(null)} />}
+        {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onAvatar={(i) => setModal("avatar" + i)} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
         {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
         {imgModal}
+        {avatarModal}
       </div>
     );
   }
@@ -1674,13 +1801,25 @@ function JassApp() {
   const Seat = ({ p, style }) => {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
+    const star = isDecider ? (r.pushed ? " ☆" : " ★") : "";
+    const ring = curHolder === p ? STICH : active ? C.gold : E.team(p) === 0 ? "rgba(244,196,48,0.55)" : "rgba(255,255,255,0.35)";
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+        {big ? (
+          // iPad: rundes Badge mit Comic-Figur, Name darunter
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div style={{ borderRadius: "50%", border: "4px solid " + ring, boxShadow: (curHolder === p ? "0 0 14px " + STICH : active ? "0 0 14px " + C.gold : "0 4px 10px rgba(0,0,0,0.5)") }}>
+              <Avatar a={{ ...DEFAULT_AVATARS[p], ...((settings.avatars || [])[p] || {}) }} size={Math.round(64 * uiK)} />
+            </div>
+            <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 700 }}>{NAMES[p]}{star}</div>
+          </div>
+        ) : (
         <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
           border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
           boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
-          {NAMES[p]}{isDecider ? (r.pushed ? " ☆" : " ★") : ""}
+          {NAMES[p]}{star}
         </div>
+        )}
         <div style={{ fontSize: 11 * uiK, color: C.dim }}>{r.hands[p].length} Karten</div>
         {settings.openCards && r.hands[p].length > 0 && <OpenHand cards={r.hands[p]} />}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
@@ -1696,6 +1835,22 @@ function JassApp() {
       <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)", paddingBottom: 4, background: "rgba(0,0,0,0.45)", borderBottom: "1px solid " + C.line }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", maxWidth: MAXW, margin: "0 auto", boxSizing: "border-box", zoom: uiK }}>
           <button onClick={() => setMenu(true)} style={{ background: "none", border: "none", color: C.text, fontSize: 22, cursor: "pointer", padding: "0 6px" }}>☰</button>
+          {big ? (
+            // iPad: «x & y» links, Trumpf in der Mitte, Gegner rechts
+            <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+              {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
+                <div key="t" style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 12px", borderRadius: 20, fontSize: 14, visibility: r.trump != null ? "visible" : "hidden" }}>
+                  {r.trump != null && <><ModeIcon t={r.trump} deck={deck} size={18} /><span style={{ fontWeight: 700 }}>{modeName(r.trump, deck)}</span><span style={{ color: C.dim }}>×{E.multiplier(r.trump, game.mult)}</span></>}
+                </div>
+              ) : (
+                <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
+                  <span style={{ fontSize: 13, color: C.dim, overflow: "hidden", textOverflow: "ellipsis" }}>{teamName(t)}</span>
+                  <span style={{ fontSize: 19, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{game.scores[t]}</span>
+                  <span style={{ fontSize: 11, color: C.dim }}>{game.scores[t] > 1500 && game.scores[t] < game.target ? "−" + (game.target - game.scores[t]) : "/ " + game.target}</span>
+                </div>
+              ))}
+            </div>
+          ) : (<>
           <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, cursor: "pointer", alignItems: "baseline", whiteSpace: "nowrap", overflow: "hidden" }}>
             {/* ab 1500 Punkten zusätzlich: wie viel fehlt bis zum Ziel */}
             {[0, 1].map((t) => (
@@ -1714,6 +1869,7 @@ function JassApp() {
               <span style={{ color: C.dim }}>×{E.multiplier(r.trump, game.mult)}</span>
             </div>
           )}
+          </>)}
         </div>
       </div>
 
@@ -1805,11 +1961,12 @@ function JassApp() {
       {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
         onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
-      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
+      {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onAvatar={(i) => setModal("avatar" + i)} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
       {party && (party.sad ? <Frustration key={party.key} text={party.text} /> : <Celebration key={party.key} text={party.text} />)}
       {imgModal}
+      {avatarModal}
     </div>
   );
 }
