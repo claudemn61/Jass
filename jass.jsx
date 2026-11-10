@@ -207,7 +207,7 @@ function finishRound(g, rUpd, res, winner, extra) {
   return {
     ...g, scores, berg, pend, history: g.history.concat([entry]),
     // für das Replay: Austeilung, Ansage und alle (eingezogenen) Stiche dieser Runde
-    lastRound: { no: r.no, start: r.start, chooser: r.chooser, decider: r.decider, pushed: r.pushed, trump: r.trump, tricks: (r.tricksLog || []).filter((t) => t.length === 4), pile: r.pile || null },
+    lastRound: { no: r.no, start: r.start, chooser: r.chooser, decider: r.decider, pushed: r.pushed, trump: r.trump, tricks: (r.tricksLog || []).filter((t) => t.length === 4).concat(r.replayTricks || []), pile: null }, // Replay: immer alle Stiche einzeln
     over: winner != null ? { winner } : null,
     round: { ...r, trick: [], turn: null, phase: "roundEnd", result: res, ...(extra || {}) },
   };
@@ -247,6 +247,37 @@ function canClaim(r, p) {
   return still.every((q) => !E.legalCards(r.hands[q], tr, t).some((c) => E.power(c, led, t) > wPow));
 }
 
+// Rest der Runde einzeln durchspielen (nur für das Replay): Spieler p legt seine
+// Karten, stärkste erlaubte zuerst, die anderen geben mit der Heuristik zu.
+// Liefert die Stiche ab dem laufenden Stich (mit den bereits gelegten Karten).
+function simulateRest(r, p) {
+  const hands = r.hands.map((h) => h.slice());
+  const out = [];
+  let trick = r.trick.slice(), turn = r.turn;
+  const played = r.played.concat(r.trick.map((e) => e.c));
+  const hist = (r.tricksLog || []).slice();
+  for (let guard = 0; guard < 60; guard++) {
+    if (trick.length === 4) {
+      const w = trick[E.trickWinnerIdx(trick, r.trump)].p;
+      out.push(trick); hist.push(trick);
+      trick.forEach((e) => played.push(e.c));
+      trick = []; turn = w;
+    }
+    if (!hands[turn].length) break;
+    const legal = E.legalCards(hands[turn], trick, r.trump);
+    let c;
+    if (turn === p) {
+      const led = trick.length ? E.suitOf(trick[0].c) : null;
+      c = legal.slice().sort((a, b) => E.power(b, led == null ? E.suitOf(b) : led, r.trump) - E.power(a, led == null ? E.suitOf(a) : led, r.trump))[0];
+    } else c = E.botPlay({ hand: hands[turn], trick, t: r.trump, played, p: turn, declarer: r.chooser, tricks: hist });
+    hands[turn] = hands[turn].filter((x) => x !== c);
+    trick.push({ p: turn, c });
+    turn = (turn + 1) % 4;
+  }
+  if (trick.length === 4) out.push(trick);
+  return out;
+}
+
 // Alle Karten auflegen: alle Spieler werfen ihre restlichen Karten auf einmal
 // aufs Feld, der ganze Haufen (inkl. laufendem Stich, + 5 für den letzten
 // Stich) geht an das Team von p. Danach normale Abrechnung (inkl. Match).
@@ -261,7 +292,7 @@ function doClaim(g, p) {
   const played = r.played.concat(pile.map((e) => e.c));
   const hands = r.hands.map(() => []);
   const stoeckDone = r.stoeck != null ? true : r.stoeckDone;
-  const upd = { hands, trick: [], trickPts, tricks, played, stoeckDone, trickNo: 9, lastTrick: { cards: pile, winner: p, pts }, pile: { p, cards: pile } };
+  const upd = { hands, trick: [], trickPts, tricks, played, stoeckDone, trickNo: 9, lastTrick: { cards: pile, winner: p, pts }, pile: { p, cards: pile }, replayTricks: simulateRest(r, p) };
   const res = E.scoreRound({ trump: r.trump, trickPts, tricks, weis: r.weis, stoeck: r.stoeck }, g.mult);
   const ap = E.applyScore(g.scores, res, g.target);
   return finishRound(g, upd, res, ap.winner, {});
