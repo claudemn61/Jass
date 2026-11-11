@@ -1353,7 +1353,7 @@ function Choice({ value, options, onChange }) {
     <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
       {options.map(([v, l]) => (
         <button key={String(v)} onClick={() => onChange(v)}
-          style={{ ...btn(value === v), flex: "1 1 0", minWidth: 0, padding: "8px 3px", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
+          style={{ ...btn(value === v), flex: "1 1 0", minWidth: 0, padding: "5px 3px", fontSize: 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
       ))}
     </div>
   );
@@ -1421,8 +1421,8 @@ function BackupRow() {
   return (
     <div>
       <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
-        <button onClick={doExport} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "8px 3px", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap" }}>Sichern…</button>
-        <button onClick={() => inRef.current.click()} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "8px 3px", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap" }}>Laden…</button>
+        <button onClick={doExport} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "5px 3px", fontSize: 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Sichern…</button>
+        <button onClick={() => inRef.current.click()} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "5px 3px", fontSize: 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Laden…</button>
       </div>
       <input ref={inRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
       {msg && <div style={{ fontSize: 13, color: C.gold, marginTop: 8 }}>{msg}</div>}
@@ -1452,13 +1452,13 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const nowGilt = inGame ? " Gilt ab dem nächsten Spiel." : "";
   return (
     <Modal title="Einstellungen" onClose={onClose} page tight maxW={big ? Math.min(vw - 190, 1100) : undefined}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", minmax(0, 1fr))", gap: (big ? 12 : 8) + "px " + (big ? 22 : 12) + "px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", minmax(0, 1fr))", gap: (big ? 10 : 6) + "px " + (big ? 22 : 12) + "px" }}>
         {row("namen", "Namen der Spieler", (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 5 }}>
             {names.map(([i, lab]) => (
               <input key={i} value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14} placeholder={lab} title={lab}
                 onChange={(e) => { const n = (settings.names || DEFAULT_NAMES).slice(); n[i] = e.target.value; set("names", n); }}
-                style={{ width: "100%", boxSizing: "border-box", padding: "7px 6px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 13, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
+                style={{ width: "100%", boxSizing: "border-box", padding: "5px 6px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 13, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
             ))}
           </div>
         ), "Reihenfolge: " + names.map((n) => n[1]).join(", ") + ". Leeres Feld = Standardname.", true)}
@@ -1492,10 +1492,10 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
         {/* Eigene Kartenbilder: ein-/ausblendbar */}
         {row("imgs", "Eigene Kartenbilder", ownImgs
           ? <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={onImages} style={{ ...btn(false), flex: 2, padding: "8px 6px", fontSize: 13, borderRadius: 10 }}>🃏 Bilder verwalten…</button>
-              <button onClick={() => set("showImgs", false)} style={{ ...btn(false), flex: 1, padding: "8px 6px", fontSize: 13, borderRadius: 10 }}>Ausblenden</button>
+              <button onClick={onImages} style={{ ...btn(false), flex: 2, padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>🃏 Bilder verwalten…</button>
+              <button onClick={() => set("showImgs", false)} style={{ ...btn(false), flex: 1, padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>Ausblenden</button>
             </div>
-          : <button onClick={() => set("showImgs", true)} style={{ ...btn(false), width: "100%", padding: "8px 6px", fontSize: 13, borderRadius: 10 }}>Einblenden ▾</button>,
+          : <button onClick={() => set("showImgs", true)} style={{ ...btn(false), width: "100%", padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>Einblenden ▾</button>,
           "Fotos/Scans deiner eigenen Karten, Rückseite und Farbsymbole – nur auf diesem Gerät gespeichert.")}
       </div>
     </Modal>
