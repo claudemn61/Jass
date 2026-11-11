@@ -1394,9 +1394,12 @@ async function exportBackup() {
   let images = {};
   try { images = await imgAll(); } catch (e) {}
   const backup = { app: "jass", format: 1, created: new Date().toISOString(), localStorage: data, images };
-  const name = "jass-backup-" + new Date().toISOString().slice(0, 10) + ".json";
-  const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
-  const file = new File([blob], name, { type: "application/json" });
+  // Dateiname «Backup Jass_Datum_Zeit» (lokale Zeit); eigene Endung und neutraler Typ, damit das
+  // Betriebssystem es nicht als Text-/JSON-Datei öffnet (Inhalt bleibt intern JSON)
+  const d = new Date(), z = (n) => String(n).padStart(2, "0");
+  const name = "Backup Jass_" + d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "_" + z(d.getHours()) + "-" + z(d.getMinutes()) + ".jass";
+  const blob = new Blob([JSON.stringify(backup)], { type: "application/octet-stream" });
+  const file = new File([blob], name, { type: "application/octet-stream" });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: "Jass-Backup" }); return "geteilt"; }
     catch (e) { if (e && e.name === "AbortError") return "abgebrochen"; }
@@ -1447,7 +1450,7 @@ function BackupRow() {
         <button onClick={doExport} style={{ ...btn(false), flex: 1, minWidth: 0, padding: big0 ? "12px 6px" : "5px 3px", fontSize: big0 ? 16 : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Sichern…</button>
         <button onClick={() => inRef.current.click()} style={{ ...btn(false), flex: 1, minWidth: 0, padding: big0 ? "12px 6px" : "5px 3px", fontSize: big0 ? 16 : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Laden…</button>
       </div>
-      <input ref={inRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
+      <input ref={inRef} type="file" onChange={doImport} style={{ display: "none" }} />
       {msg && <div style={{ fontSize: 13, color: C.gold, marginTop: 8 }}>{msg}</div>}
     </div>
   );
