@@ -3,12 +3,12 @@
 // neueste Version, offline die zuletzt geladene aus dem Cache (inkl. der
 // React/Babel-Bibliotheken vom CDN).
 // CACHE_VERSION nur bei neuen/entfernten Dateien erhöhen.
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const CACHE_NAME = `jass-cache-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
   "index.html", "jass.jsx", "engine.js", "manifest.json",
-  "apple-touch-icon.png", "icon-192.png", "icon-512.png", "favicon-32.png", "filz.jpg", "schiefer.jpg",
+  "apple-touch-icon.png", "icon-192.png", "icon-512.png", "favicon-32.png", "favicon-64.png", "filz.jpg", "schiefer.jpg",
   "https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js",
   "https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js",
   "https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js",
