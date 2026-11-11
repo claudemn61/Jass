@@ -46,4 +46,5 @@ for (let g = 0; g < G; g++) {
   }
   if (winner === teamA) winsA++;
 }
+if (A.__stat) console.log('Variante: Entscheidungen aus der Vorhand', A.__stat.calls, '· davon «sehr schwach für ×2/×3 → selber einfach»', A.__stat.weak);
 console.log(`Partien ${G}: A gewinnt ${winsA} (${Math.round(100 * winsA / G)}%), Ø Rundenvorsprung A ${(diffA / rounds).toFixed(1)} | ${((Date.now() - t0) / 1000).toFixed(0)}s`);
