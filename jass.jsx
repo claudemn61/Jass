@@ -1338,18 +1338,18 @@ const btn = (primary) => ({
   fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 });
 
-function Modal({ title, onClose, children, wide, page, maxW, tight }) {
+function Modal({ title, onClose, children, wide, page, maxW, tight, fill }) {
   if (page) {
     // Ganze Seite auf der alten Schiefertafel (wie der Startbildschirm)
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 50, overflowY: "auto", background: "#1b2120", color: C.text }}>
         <StartSlate />
-        <div style={{ position: "relative", zIndex: 1, maxWidth: maxW || (window.innerWidth >= 700 ? 760 : 560), margin: "0 auto", padding: tight ? "calc(env(safe-area-inset-top, 0px) + 22px) 24px calc(env(safe-area-inset-bottom, 0px) + 20px)" : "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box" }}>
+        <div style={{ position: "relative", zIndex: 1, maxWidth: maxW || (window.innerWidth >= 700 ? 760 : 560), margin: "0 auto", padding: tight ? "calc(env(safe-area-inset-top, 0px) + 22px) 24px calc(env(safe-area-inset-bottom, 0px) + 20px)" : "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box", minHeight: fill ? "100%" : undefined, display: fill ? "flex" : undefined, flexDirection: fill ? "column" : undefined }}>
           <div style={{ display: "flex", alignItems: "center", marginBottom: tight ? 8 : 16 }}>
             <div style={{ flex: 1, fontSize: tight ? 24 : 28, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.2)" }}>{title}</div>
             {onClose && <button onClick={onClose} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid " + C.line, borderRadius: 20, color: C.text, fontSize: 18, width: 36, height: 36, cursor: "pointer" }}>✕</button>}
           </div>
-          {children}
+          {fill ? <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>{children}</div> : children}
         </div>
       </div>
     );
@@ -1368,12 +1368,14 @@ function Modal({ title, onClose, children, wide, page, maxW, tight }) {
 }
 
 // Auswahl-Knöpfe: immer auf einer Zeile (gleich breit, Text wird nötigenfalls gekürzt)
+const SetBigCtx = React.createContext(false); // Settings auf grossem Bildschirm: grössere Knöpfe
 function Choice({ value, options, onChange }) {
+  const L = useContext(SetBigCtx);
   return (
-    <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
+    <div style={{ display: "flex", gap: L ? (options.length >= 4 ? 5 : 8) : 4, flexWrap: "nowrap" }}>
       {options.map(([v, l]) => (
         <button key={String(v)} onClick={() => onChange(v)}
-          style={{ ...btn(value === v), flex: "1 1 0", minWidth: 0, padding: "5px 3px", fontSize: 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
+          style={{ ...btn(value === v), flex: "1 1 0", minWidth: 0, padding: L ? "12px 4px" : "5px 3px", fontSize: L ? (options.length >= 4 ? 14 : 16) : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
       ))}
     </div>
   );
@@ -1418,6 +1420,7 @@ async function importBackup(file) {
 }
 
 function BackupRow() {
+  const big0 = useContext(SetBigCtx);
   const [msg, setMsg] = useState(null);
   const inRef = useRef(null);
   const doExport = async () => {
@@ -1431,7 +1434,7 @@ function BackupRow() {
     const f = ev.target.files && ev.target.files[0];
     ev.target.value = "";
     if (!f) return;
-    if (!window.confirm("Backup laden? Einstellungen, Spielstand, Statistik, Striche und eigene Kartenbilder auf diesem Gerät werden ersetzt.")) return;
+    if (!window.confirm("Backup laden? Settings, Spielstand, Statistik, Striche und eigene Kartenbilder auf diesem Gerät werden ersetzt.")) return;
     try {
       const n = await importBackup(f);
       setMsg("Backup geladen (" + n + " Bilder). Die App startet neu…");
@@ -1441,8 +1444,8 @@ function BackupRow() {
   return (
     <div>
       <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
-        <button onClick={doExport} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "5px 3px", fontSize: 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Sichern…</button>
-        <button onClick={() => inRef.current.click()} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "5px 3px", fontSize: 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Laden…</button>
+        <button onClick={doExport} style={{ ...btn(false), flex: 1, minWidth: 0, padding: big0 ? "12px 6px" : "5px 3px", fontSize: big0 ? 16 : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Sichern…</button>
+        <button onClick={() => inRef.current.click()} style={{ ...btn(false), flex: 1, minWidth: 0, padding: big0 ? "12px 6px" : "5px 3px", fontSize: big0 ? 16 : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap" }}>Laden…</button>
       </div>
       <input ref={inRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
       {msg && <div style={{ fontSize: 13, color: C.gold, marginTop: 8 }}>{msg}</div>}
@@ -1459,7 +1462,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   // eine Einstellung: kleine Beschriftung, Knöpfe auf einer Zeile, Hinweis hinter «ⓘ»
   const row = (key, label, el, hintText, span) => (
     <div key={key} style={{ gridColumn: span === true || (span === "phone" && !big) ? "1 / -1" : undefined, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.dim, marginBottom: 3 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: big ? 15 : 11, color: C.dim, marginBottom: big ? 8 : 3 }}>
         <span>{label}</span>
         {hintText && <span onClick={() => setHint({ ...hint, [key]: !hint[key] })} style={{ cursor: "pointer", color: hint[key] ? C.gold : C.dim, fontSize: 14, lineHeight: 1, padding: "0 4px" }}>ⓘ</span>}
       </div>
@@ -1471,14 +1474,16 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const ownImgs = !!settings.showImgs;
   const nowGilt = inGame ? " Gilt ab dem nächsten Spiel." : "";
   return (
-    <Modal title="Einstellungen" onClose={onClose} page tight maxW={big ? Math.min(vw - 190, 1100) : undefined}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", minmax(0, 1fr))", gap: (big ? 10 : 6) + "px " + (big ? 22 : 12) + "px" }}>
+    <Modal title="Settings" onClose={onClose} page tight fill={big} maxW={big ? Math.min(vw - 60, 1500) : undefined}>
+     <SetBigCtx.Provider value={big}>
+      {/* iPad/Mac: Zeilen verteilen sich über die ganze Seitenhöhe; iPhone: kompakt */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", minmax(0, 1fr))", gap: (big ? 10 : 6) + "px " + (big ? 36 : 12) + "px", flex: big ? 1 : undefined, gridAutoRows: big ? "1fr" : undefined, alignItems: big ? "center" : undefined, paddingBottom: big ? 8 : 0 }}>
         {row("namen", "Namen der Spieler", (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 5 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: big ? 10 : 5 }}>
             {names.map(([i, lab]) => (
               <input key={i} value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14} placeholder={lab} title={lab}
                 onChange={(e) => { const n = (settings.names || DEFAULT_NAMES).slice(); n[i] = e.target.value; set("names", n); }}
-                style={{ width: "100%", boxSizing: "border-box", padding: "5px 6px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 13, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
+                style={{ width: "100%", boxSizing: "border-box", padding: big ? "11px 10px" : "5px 6px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: big ? 16 : 13, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
             ))}
           </div>
         ), "Reihenfolge: " + names.map((n) => n[1]).join(", ") + ". Leeres Feld = Standardname.", true)}
@@ -1508,16 +1513,17 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Mehrere: hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin und der Haufen geht an sein Team. Einzeln: auch dann wird jede Karte einzeln gespielt.")}
         {row("play", "Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "2× tippen"], ["tap", "1× tippen"], ["swipe", "Wischen"]]} />,
           "2× tippen: antippen und bestätigen. 1× tippen: sofort spielen. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.", "phone")}
-        {row("backup", "Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes Gerät übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben.")}
+        {row("backup", "Backup", <BackupRow />, "Eine Datei mit Settings, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes Gerät übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben.")}
         {/* Eigene Kartenbilder: ein-/ausblendbar */}
         {row("imgs", "Eigene Kartenbilder", ownImgs
           ? <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={onImages} style={{ ...btn(false), flex: 2, padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>🃏 Bilder verwalten…</button>
-              <button onClick={() => set("showImgs", false)} style={{ ...btn(false), flex: 1, padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>Ausblenden</button>
+              <button onClick={onImages} style={{ ...btn(false), flex: 2, padding: big ? "12px 6px" : "5px 6px", fontSize: big ? 16 : 13, borderRadius: 10 }}>🃏 Bilder verwalten…</button>
+              <button onClick={() => set("showImgs", false)} style={{ ...btn(false), flex: 1, padding: big ? "12px 6px" : "5px 6px", fontSize: big ? 16 : 13, borderRadius: 10 }}>Ausblenden</button>
             </div>
-          : <button onClick={() => set("showImgs", true)} style={{ ...btn(false), width: "100%", padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>Einblenden ▾</button>,
+          : <button onClick={() => set("showImgs", true)} style={{ ...btn(false), width: "100%", padding: big ? "12px 6px" : "5px 6px", fontSize: big ? 16 : 13, borderRadius: 10 }}>Einblenden ▾</button>,
           "Fotos/Scans deiner eigenen Karten, Rückseite und Farbsymbole – aus Copyright-Gründen nur auf diesem Gerät gespeichert.")}
       </div>
+     </SetBigCtx.Provider>
     </Modal>
   );
 }
@@ -1538,17 +1544,17 @@ function RulesModal({ onClose, deck }) {
       {h("Weis und Stöck")}
       {p("Weis werden automatisch erkannt. Im ersten Stich erscheint bei jedem Spieler mit seiner ersten Karte nur die Weishöhe als weisse Zahl (wie am Tisch: nur der höchste Wert wird angesagt); nach dem ersten Stich werden sie gezeigt (die gültigen des Siegerteams mit Farbe und Karte, die unterlegenen Ansagen der anderen nur als ausgegraute Zahl): Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Gleiche 100 (alle Kartenwerte von 6 bis Ass, auch bei Obenabe und Undenufe), vier Nell 150, vier Under 200; ein Sechsblatt 150, Siebenblatt 200, Achtblatt 250, Neunblatt 300. Kreuzweise (eine Karte in zwei Weisen) sind gültig. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. Bei gleichhohen Weisen gilt der Reihe nach: Eine Reihenfolge geht vor vier Gleichen; die höhere Karte des Weis (bei Undenufe die tiefste); bei gleicher höchster Karte die in der Trumpffarbe; sonst, wer zuerst an der Reihe ist (Vorhand). Ein geschriebener Weis bleibt auch bei einem Match der Gegner bestehen. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
-      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, kann sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Einstellungen lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
+      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, kann sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Settings lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
       {h("Offene Karten (Lernmodus)")}
-      {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
+      {p("In den Settings lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
-      {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben aus Copyright-Gründen nur auf diesem Gerät gespeichert.")}
+      {p("Unter Settings → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben aus Copyright-Gründen nur auf diesem Gerät gespeichert.")}
       {h("Mitspieler neu zuordnen")}
       {p("Mit der Einstellung «Mitspieler» werden bei jedem neuen Spiel die drei anderen Spieler zufällig auf die Plätze Partner, links und rechts verteilt. Wer dein Partner ist, ändert sich also von Spiel zu Spiel; innerhalb eines Spiels bleibt es gleich.")}
       {h("Weisen nachfragen")}
       {p("Stellst du «Weis» auf «Nachfragen», fragt die App vor deiner ersten Karte, ob du wirklich weisen willst. Partner und Gegner entscheiden im Hintergrund: Weise ab 50 Punkten werden immer angesagt, ein Dreiblatt nur, wenn es keine hohen Trümpfe verrät oder ein Team nahe am Ziel ist. Ein nicht angesagter Weis zählt nicht und wird nicht gezeigt.")}
       {h("Alle Böcke auflegen (optional)")}
-      {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (keiner der anderen drei Spieler hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat sonst niemand mehr Trumpf, und einen laufenden Stich gewinnt er selbst sicher, sodass er danach ausspielt; ihm gehören also alle restlichen Stiche), kann er alle Karten auf einmal aufs Feld werfen. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Das ist optional und lässt sich in den Einstellungen unter «Bock-Karten» ein- oder ausschalten. Bei dir geschieht es automatisch, sobald du in dieser Lage eine Karte spielst.")}
+      {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (keiner der anderen drei Spieler hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat sonst niemand mehr Trumpf, und einen laufenden Stich gewinnt er selbst sicher, sodass er danach ausspielt; ihm gehören also alle restlichen Stiche), kann er alle Karten auf einmal aufs Feld werfen. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Das ist optional und lässt sich in den Settings unter «Bock-Karten» ein- oder ausschalten. Bei dir geschieht es automatisch, sobald du in dieser Lage eine Karte spielst.")}
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
@@ -2231,7 +2237,7 @@ function JassApp() {
         <div style={{ color: "rgba(240,240,232,0.7)", fontSize: 15, marginTop: -10, fontFamily: CHALK_FONT }}>Schieber gegen den Computer</div>
         {canResume && <button onClick={() => setHome(false)} style={{ ...btn(true), width: 240, marginTop: 10 }}>Weiterspielen ({game.scores[0]} : {game.scores[1]})</button>}
         <button onClick={canResume ? askNew : startNew} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
-        <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Einstellungen</button>
+        <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Settings</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
         <div style={{ color: "rgba(240,240,232,0.55)", fontSize: 12, marginTop: 10, fontFamily: CHALK_FONT }}>v{APP_VERSION}</div>
@@ -2505,7 +2511,7 @@ function JassApp() {
           {r.trump != null && <div>Trumpf: {NAMES[r.decider]} {r.pushed ? "☆" : "★"}</div>}
         </div>
         {/* Knöpfe unten rechts übereinander: «Bedanken» über «Letzter Stich» (kollidiert so nicht mit dem Weis in der Mitte) */}
-        <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, zoom: uiK }}>
+        <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", flexDirection: big ? "row" : "column", alignItems: big ? "center" : "flex-end", gap: 6, zoom: uiK }}>
           {THANK === "knopf" && (r.phase === "play" || r.phase === "trickDone") && !game.over && (
             <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
               style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
@@ -2566,7 +2572,7 @@ function JassApp() {
           ["Neues Spiel", askNew],
           ["Jasstafel", () => setModal("tafel")],
           r.lastTrick ? ["Letzter Stich", () => setModal("last")] : null,
-          ["Einstellungen", () => setModal("settings")],
+          ["Settings", () => setModal("settings")],
           ["Regeln", () => setModal("rules")],
           ["Info & Statistik", () => setModal("info")],
           ["Zum Startbildschirm", () => setHome(true)],
