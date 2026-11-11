@@ -32,6 +32,10 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
   (`game.pend`) abgezogen, einzelne Striche manuell löschbar (Match 1, Sieg 2, Berg 1; Berg = 60 % des Ziels, bei Ziel 1000 kein Berg).
 - `jass.jsx`: UI und Spielablauf. `index.html`: Lader + Fehleranzeige. `sw.js`: Offline-Cache.
 - Mitspieler am Tisch: iPad gefächerte Karten (`CardFan`) mit Name darunter, iPhone nur der Name; keine Spielerbilder.
+- Weisregeln sind **verbindlich nach https://jassverzeichnis.ch/ueberblick-weisregeln-beim-jassen**
+  (vier Gleiche 6–Ass = 100, Nell 150, Under 200; Folgen 20/50/100/150/200/250/300; Rangfolge bei
+  Gleichstand: Folge vor Vierling, höhere Karte (Undenufe: tiefste), Trumpffarbe, Vorhand).
+  Prüfung: `node tests/weis.js` (muss «alles ok» melden).
 - Einstellung `dealMode` (Austeilen): `geber` (Karten fliegen vom Geber = Spieler vor dem ersten Ansager,
   ausgeteilt ab dem ersten Ansager), `mitte`, `aus`; Animation 5 s, 12 Päckchen à 3 (`DealAnim`).
 - Einstellungen `weisAsk` (Rückfrage vor deiner ersten Karte; Computer entscheiden per `botWeisDecision`;

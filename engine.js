@@ -87,7 +87,9 @@
         i = j + 1;
       }
     }
-    for (let r = 3; r < 9; r++) {
+    // Vier Gleiche (Schweizer Jassverzeichnis, «Überblick: Weisregeln»): alle Kartenwerte 6 bis Ass
+    // zählen 100, vier Nell (9) 150, vier Under 200 – auch bei Obenabe und Undenufe
+    for (let r = 0; r < 9; r++) {
       if (hand.filter((c) => rankOf(c) === r).length === 4) {
         res.push({ type: "four", r, pts: r === 5 ? 200 : r === 3 ? 150 : 100 });
       }
@@ -95,9 +97,13 @@
     return res;
   }
 
+  // Rangfolge bei gleichhohen Weisen (verbindlich nach Schweizer Jassverzeichnis), in dieser Reihenfolge:
+  // 1. mehr Punkte; 2. eine Reihenfolge hat Vorrang vor vier Gleichen; 3. die höhere Karte des Weis
+  // (bei Undenufe die tiefste); 4. gleiche höchste Karte: die in der Trumpffarbe gilt;
+  // 5. sonst gilt, wer in der Spielreihenfolge zuerst dran ist (Vorhand) – siehe resolveWeis
   function weisKey(w, t) {
-    const height = w.type === "four" ? 10 + w.r : (t === UNDE ? 8 - w.lo : w.hi);
-    return [w.pts, w.type === "four" ? 1 : 0, w.type === "seq" ? w.len : 0, height, w.type === "seq" && w.s === t ? 1 : 0];
+    const height = w.type === "four" ? (t === UNDE ? 8 - w.r : w.r) : (t === UNDE ? 8 - w.lo : w.hi);
+    return [w.pts, w.type === "seq" ? 1 : 0, height, w.type === "seq" && w.s === t ? 1 : 0];
   }
   function cmpKey(a, b) {
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];

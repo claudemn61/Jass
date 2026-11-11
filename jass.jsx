@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.1.1";
+const APP_VERSION = "2.1.2";
 
 const CHANGELOG = [
+  {
+    version: "2.1.2",
+    changes: [
+      "Weisregeln nach dem Schweizer Jassverzeichnis: vier Sechser, Siebner und Achter zählen neu ebenfalls 100 (vier Nell 150, vier Under 200); bei gleichhohen Weisen geht eine Reihenfolge vor vier Gleichen, dann die höhere Karte (bei Undenufe die tiefste), dann die Trumpffarbe, dann die Vorhand",
+    ],
+  },
   {
     version: "2.1.1",
     changes: [
@@ -1524,7 +1530,7 @@ function RulesModal({ onClose, deck }) {
       {h("Kartenwerte")}
       {p("Trumpf: Under 20, Nell (9) 14, Ass 11, 10 10, König 4, Ober 3. Übrige Farben: Ass 11, 10 10, König 4, Ober 3, Under 2. Obenabe/Undenufe: zusätzlich Achter 8; bei Undenufe zählt der Sechser 11 statt des Asses. Letzter Stich +5. Total 157 pro Runde, alle Stiche (Match) 257.")}
       {h("Weis und Stöck")}
-      {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Under 200, vier Nell 150, vier Ass/König/Ober/Zehner 100. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
+      {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Gleiche 100 (alle Kartenwerte von 6 bis Ass, auch bei Obenabe und Undenufe), vier Nell 150, vier Under 200; ein Sechsblatt 150, Siebenblatt 200, Achtblatt 250, Neunblatt 300. Kreuzweise (eine Karte in zwei Weisen) sind gültig. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. Bei gleichhohen Weisen gilt der Reihe nach: Eine Reihenfolge geht vor vier Gleichen; die höhere Karte des Weis (bei Undenufe die tiefste); bei gleicher höchster Karte die in der Trumpffarbe; sonst, wer zuerst an der Reihe ist (Vorhand). Ein geschriebener Weis bleibt auch bei einem Match der Gegner bestehen. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, kann sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Einstellungen lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
       {h("Offene Karten (Lernmodus)")}
