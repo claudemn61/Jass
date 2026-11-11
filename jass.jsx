@@ -2516,7 +2516,7 @@ function JassApp() {
   // Einstellung «Kartenreihen» (nur iPhone): Hand in zwei überlappenden Reihen mit grösseren Karten
   const twoRows = !big && settings.handRows === 2;
   const cwH = twoRows ? Math.max(cw, Math.min(Math.floor((W - 16) / 4.2), Math.floor(vh * 0.17))) : cw;
-  const handRows = twoRows && hand.length > 5 ? [hand.slice(0, Math.ceil(hand.length / 2)), hand.slice(Math.ceil(hand.length / 2))] : [hand];
+  const handRows = twoRows && hand.length > 5 ? [hand.slice(0, Math.floor(hand.length / 2)), hand.slice(Math.floor(hand.length / 2))] : [hand];
   const step = twoRows ? (cwH > 0 ? Math.min(cwH + 4, (W - 16 - cwH) / 4) : 0) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
   const handW = cwH + step * Math.max(0, (twoRows ? Math.max(...handRows.map((x) => x.length)) : hand.length) - 1);
   const rowOff = Math.round(cwH * 1.5 * 0.56); // Versatz der zweiten Reihe
