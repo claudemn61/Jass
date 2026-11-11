@@ -2012,13 +2012,14 @@ function LastTrickModal({ lt, deck, trump, onClose }) {
   );
 }
 
-function InfoModal({ stats, onClose }) {
+function InfoModal({ stats, onReset, onClose }) {
   return (
     <Modal title="Info" onClose={onClose} page>
       <div style={{ fontSize: 14, marginBottom: 14 }}>
         <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Statistik</div>
         <div>Spiele: {stats.played} · gewonnen: {stats.won}{stats.played ? " (" + Math.round((100 * stats.won) / stats.played) + "%)" : ""}</div>
         <div>Runden: {stats.rounds} · Matches: {stats.matches}</div>
+        <button onClick={() => { if (window.confirm("Statistik auf 0 zurücksetzen?")) onReset(); }} style={{ ...btn(false), padding: "5px 12px", fontSize: 13, marginTop: 8 }}>Statistik zurücksetzen</button>
       </div>
       <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Änderungen</div>
       {CHANGELOG.map((e) => (
@@ -2489,7 +2490,7 @@ function JassApp() {
         </div>
         {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
-        {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
+        {modal === "info" && <InfoModal stats={stats} onReset={() => setStats({ played: 0, won: 0, rounds: 0, matches: 0 })} onClose={() => setModal(null)} />}
         {imgModal}
       </div>
     );
@@ -2857,7 +2858,7 @@ function JassApp() {
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
-      {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
+      {modal === "info" && <InfoModal stats={stats} onReset={() => setStats({ played: 0, won: 0, rounds: 0, matches: 0 })} onClose={() => setModal(null)} />}
       {party && (party.sad ? <Frustration key={party.key} text={party.text} /> : <Celebration key={party.key} text={party.text} />)}
       {replayRec && <ReplayView key={replayRec.no} rec={replayRec} deck={deck} speed={settings.speed} onClose={() => setReplay(false)} />}
       {imgModal}
