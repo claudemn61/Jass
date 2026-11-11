@@ -194,10 +194,15 @@
     return sc;
   }
 
-  function botChooseTrump(hand, canPush) {
+  // Nur einfach zählende Trümpfe (bei gestaffelter Zählung): Rosen (1) und Eicheln (3)
+  const CHEAP = [1, 3];
+  const CHEAP_HIT = 0.65;    // Simulation: Anteil der Verteilungen mit ≥ 100 Punkten
+  const CHEAP_MIN_SC = 56;   // Heuristik: Mindestwertung für Rosen/Eicheln aus der Vorhand
+  function botChooseTrump(hand, canPush, multMode) {
     let best = 0, bestSc = -Infinity;
     for (let m = 0; m < 6; m++) { const sc = evalTrump(hand, m); if (sc > bestSc) { bestSc = sc; best = m; } }
     if (canPush && bestSc < 52) return "push";
+    if (canPush && multMode === "stufe" && CHEAP.includes(best) && bestSc < CHEAP_MIN_SC) return "push";
     return best;
   }
 
@@ -585,10 +590,11 @@
     const unknown = ALL.filter((c) => !hand.includes(c));
     const myTeam = team(p);
     const val = [0, 0, 0, 0, 0, 0];
+    const hit100 = [0, 0, 0, 0, 0, 0]; // in wie vielen Verteilungen das eigene Team (Stiche + Weis + Stöck) ≥ 100 Punkte erreicht
     let pushVal = 0;
     const noVoids = [0, 1, 2, 3].map(() => [false, false, false, false]);
     const need = {}; others.forEach((q) => (need[q] = 9));
-    const evalMode = (hands, m) => {
+    const evalMode = (hands, m, count) => {
       const mult = multiplier(m, multMode);
       const weis = resolveWeis(hands, m, p).pts;
       const st = findStoeck(hands, m);
@@ -604,6 +610,7 @@
         eg = { run, mult, target: opts.target };
       }
       const r = rollout(hands, [], [], p, m, p, pre == null ? eg : null);
+      if (count && r.pts[myTeam] + weis[myTeam] + stoeck[myTeam] + (r.tricks[myTeam] === 9 ? 100 : 0) >= 100) hit100[m]++;
       if (pre != null) r.winner = pre;
       let v = rolloutValue(r, myTeam, [0, 0]) + (weis[myTeam] - weis[1 - myTeam]) + (stoeck[myTeam] - stoeck[1 - myTeam]);
       const bonus = r.winner === myTeam ? WIN_BONUS : r.winner === 1 - myTeam ? -WIN_BONUS : 0;
@@ -612,19 +619,22 @@
     for (let k = 0; k < n; k++) {
       const sh = sampleHands(unknown, others, need, noVoids, 0, rnd);
       const hands = []; hands[p] = hand; others.forEach((q) => (hands[q] = sh[q]));
-      for (let m = 0; m < 6; m++) val[m] += evalMode(hands, m);
-      if (canPush) pushVal += evalMode(hands, botChooseTrump(hands[(p + 2) % 4], false));
+      for (let m = 0; m < 6; m++) val[m] += evalMode(hands, m, true);
+      if (canPush) pushVal += evalMode(hands, botChooseTrump(hands[(p + 2) % 4], false), false);
     }
     let best = 0;
     for (let m = 1; m < 6; m++) if (val[m] > val[best]) best = m;
     if (canPush && pushVal > val[best]) return "push";
+    // Strategie für alle: Vorhand wählt Rosen oder Eicheln (nur einfach zählend) nur, wenn 100 Punkte
+    // realistisch sind (≥ CHEAP_HIT der Verteilungen), sonst schieben
+    if (canPush && multMode === "stufe" && CHEAP.includes(best) && hit100[best] / n < CHEAP_HIT) return "push";
     return best;
   }
 
   const api = {
     OBE, UNDE, ALL, suitOf, rankOf, team, points, isTrump, power, trickWinnerIdx, legalCards,
     findWeis, resolveWeis, findStoeck, multiplier, deal, shuffle, sortHand, evalTrump,
-    botChooseTrump, botPlay, botPlaySmart, botChooseTrumpSmart, inferVoids, signals, knownFromWeis, weisCards, scoreRound, applyScore, SEQ_NAME, TRUMP_STR,
+    botChooseTrump, rollout, sampleHands, makeRng, botPlay, botPlaySmart, botChooseTrumpSmart, inferVoids, signals, knownFromWeis, weisCards, scoreRound, applyScore, SEQ_NAME, TRUMP_STR,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.JassEngine = api;

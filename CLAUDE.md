@@ -15,6 +15,9 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
   `node tests/strength.js [runden] [mcTrumpf 0/1] [seed]` (MC-Team gegen Heuristik-Team) und ganze
   Partien zweier Engine-Versionen: `node tests/duel.js <engineA.js> <engineB.js> [partien] [seed] [ziel]`
   (alte Version z.B. per `git show <commit>:engine.js > /tmp/alt.js`).
+- Trumpfwahl-Strategie (alle Computer): aus der Vorhand Rosen/Eicheln (bei gestaffelter Zählung nur ×1)
+  nur, wenn ≥ 100 Punkte realistisch sind (Simulation: ≥ `CHEAP_HIT` der Verteilungen; Heuristik: Wertung
+  ≥ `CHEAP_MIN_SC`), sonst schieben. Gilt nicht für den Partner nach dem Schieben (muss wählen).
 - Partnerregeln (in `botPlay`): erster Abwurf = Verwerfen (schwache Farbe), danach Schmieren
   oder Verwerfen; Bock des Partners → Karte direkt darunter zugeben; vom Partner verworfene Farbe
   nicht anspielen. Bedanken: Gegner automatisch bei Erreichen der Zielpunkte, für «Wir» per Knopf (falsch bedankt =
