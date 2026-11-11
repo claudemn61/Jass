@@ -1677,7 +1677,12 @@ function TafelVorderseite({ game, pad }) {
         {/* 20er: Fünferbündel */}
         <Tally n={Math.min(s.z, 30)} sx={L + 14} sy={B} ux={1} uy={0} nx={0} ny={1} len={24} step={10.5} seed={team * 1000 + 500} />
         {/* Einer als Zahl rechts der unteren Linie (angepasst, ggf. negativ) */}
-        {s.einer !== 0 && <ChalkText x={R + 24} y={B + 7} size={20} anchor="middle">{s.einer < 0 ? "−" + (-s.einer) : s.einer}</ChalkText>}
+        {s.einer > 0 && <ChalkText x={R + 24} y={B + 7} size={20} anchor="middle">{s.einer}</ChalkText>}
+        {/* Minus-Einer: das «−» als kräftiger, weisser Kreidestrich, die Zahl daneben */}
+        {s.einer < 0 && <>
+          <ChalkLine x1={R + 8} y1={B + 1} x2={R + 21} y2={B + 1} seed={team * 1000 + 900} w={3.6} color="rgba(255,255,255,0.98)" />
+          <ChalkText x={R + 33} y={B + 7} size={20} anchor="middle">{-s.einer}</ChalkText>
+        </>}
         <ChalkText x={W / 2} y={oy + 24} size={20} anchor="middle">{teamName(team)}</ChalkText>
         <ChalkText x={L + 6} y={T + 64} size={15}>{game.scores[team]}</ChalkText>
         {game.berg === team && <ChalkText x={R - 70} y={B - 22} size={13}>Berg ✓</ChalkText>}
