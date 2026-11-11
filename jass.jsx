@@ -170,6 +170,8 @@ let NAMES = DEFAULT_NAMES.slice();
 let THANK = "knopf";
 // Einstellung «Weis nachfragen»: der Mensch entscheidet selbst, Partner/Gegner die App im Hintergrund
 let WEISASK = false;
+// «an uns» / «an die Gegner» (Satzglied im Dativ/Akkusativ)
+const teamAn = (t) => (t === 0 ? "uns" : "die Gegner");
 const teamName = (t) => NAMES[t] + " & " + NAMES[t + 2];
 // «Du wählst» vs. «Anna wählt»
 const verb = (p, du, er) => (p === 0 && NAMES[0] === "Du" ? du : er);
@@ -1903,7 +1905,7 @@ function ClaimReportModal({ rep, deck, onClose }) {
         {rep.trickInfo.beaters.length > 0 && cards(rep.trickInfo.beaters.map((o) => ({ c: o.c, q: o.q })), 26)}
       </>}
       {head((rep.trickInfo ? "3" : "2") + ". Der Haufen")}
-      {txt(<>Alle Karten aller Spieler ({rep.pile.length}) gehen an {TEAM[rep.team]}. Kartenpunkte {rep.pilePts} + 5 für den letzten Stich = <b>{rep.claimPts}</b>; {rep.claimTeamTricks} Stiche für das Team.{rep.match ? " → Match (alle 9 Stiche)!" : ""}</>)}
+      {txt(<>Alle Karten aller Spieler ({rep.pile.length}) gehen an {teamAn(rep.team)}. Kartenpunkte {rep.pilePts} + 5 für den letzten Stich = <b>{rep.claimPts}</b>; {rep.claimTeamTricks} Stiche für das Team.{rep.match ? " → Match (alle 9 Stiche)!" : ""}</>)}
       {head((rep.trickInfo ? "4" : "3") + ". Gegenprobe: einzeln durchgespielt")}
       {txt("Die restlichen Stiche wurden zusätzlich regelkonform einzeln gespielt (er legt seine stärksten Karten zuerst, die anderen geben nach den Regeln zu):")}
       {rep.simTricks.map((tr, k) => {
@@ -1916,7 +1918,7 @@ function ClaimReportModal({ rep, deck, onClose }) {
           </div>
         );
       })}
-      {txt(<>Ergebnis einzeln: {rep.simTeam[rep.team]} von {rep.remaining} Stichen, {rep.simPts[rep.team]} Punkte für {TEAM[rep.team]}. Auflegen: {rep.claimTeamTricks} Stiche, {rep.claimPts} Punkte. {ok(rep.simTeam[rep.team] === rep.remaining && rep.simPts[rep.team] === rep.claimPts)} {rep.simTeam[rep.team] === rep.remaining && rep.simPts[rep.team] === rep.claimPts ? "Gleich – das Auflegen war korrekt." : "ABWEICHUNG – bitte melden!"}</>)}
+      {txt(<>Ergebnis einzeln: {rep.simTeam[rep.team]} von {rep.remaining} Stichen, {rep.simPts[rep.team]} Punkte für {teamAn(rep.team)}. Auflegen: {rep.claimTeamTricks} Stiche, {rep.claimPts} Punkte. {ok(rep.simTeam[rep.team] === rep.remaining && rep.simPts[rep.team] === rep.claimPts)} {rep.simTeam[rep.team] === rep.remaining && rep.simPts[rep.team] === rep.claimPts ? "Gleich – das Auflegen war korrekt." : "ABWEICHUNG – bitte melden!"}</>)}
       <div style={{ marginTop: 14, padding: "8px 10px", borderRadius: 10, background: rep.allOk && rep.simTeam[rep.team] === rep.remaining ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.18)", fontWeight: 700, fontSize: 14 }}>
         {rep.allOk && rep.simTeam[rep.team] === rep.remaining ? "✓ Alles in Ordnung: alle Karten waren sichere Böcke." : "✗ Unstimmigkeit: das Auflegen war nicht berechtigt – bitte melden."}
       </div>
@@ -2080,7 +2082,7 @@ function JassApp() {
   const play = (g, p, c) => {
     // Nur noch Böcke beim Ausspielen: alle auf einmal auflegen
     if (g.round.phase === "play" && claimOn && canClaim(g.round, p)) {
-      say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – alle werfen ihre Karten, der ganze Haufen geht an " + TEAM[E.team(p)] + ".", 3500);
+      say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – alle werfen ihre Karten, der ganze Haufen geht an " + teamAn(E.team(p)) + ".", 3500);
       const ng = doClaim(g, p);
       setSelected(null);
       setGame(ng);
