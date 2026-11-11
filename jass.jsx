@@ -195,6 +195,8 @@ function save(key, val) {
 
 const DEFAULT_NAMES = ["Du", "Rechts", "Partner", "Links"];
 const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark", dimIllegal: true, openCards: false };
+// «Standard» in den Settings (ohne Namen, Eigene Kartenbilder, Serie)
+const STANDARD_SETTINGS = { shuffleSeats: false, teamDraw: false, target: 2500, mult: "stufe", level: "stark", speed: "normal", openCards: false, dimIllegal: false, dealMode: "geber", weisAsk: false, sortDir: "rl", handRows: 1, playMode: "tap", oneTap: true, thank: "auto", claimAll: false, deck: "ch" };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 }, manuell: { bot: 0, trick: 0 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
@@ -1491,7 +1493,7 @@ const btn = (primary) => ({
   fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 });
 
-function Modal({ title, onClose, children, wide, page, maxW, tight, fill }) {
+function Modal({ title, onClose, children, wide, page, maxW, tight, fill, action }) {
   if (page) {
     // Ganze Seite auf der alten Schiefertafel (wie der Startbildschirm)
     return (
@@ -1500,7 +1502,8 @@ function Modal({ title, onClose, children, wide, page, maxW, tight, fill }) {
         <div style={{ position: "relative", zIndex: 1, maxWidth: maxW || (window.innerWidth >= 700 ? 760 : 560), margin: "0 auto", padding: tight ? "calc(env(safe-area-inset-top, 0px) + 22px) 24px calc(env(safe-area-inset-bottom, 0px) + 20px)" : "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box", minHeight: fill ? "100%" : undefined, display: fill ? "flex" : undefined, flexDirection: fill ? "column" : undefined }}>
           <div style={{ display: "flex", alignItems: "center", marginBottom: tight ? 8 : 16 }}>
             <div style={{ flex: 1, fontSize: tight ? 24 : 28, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.2)" }}>{title}</div>
-            {onClose && <button onClick={onClose} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid " + C.line, borderRadius: 20, color: C.text, fontSize: 18, width: 36, height: 36, cursor: "pointer" }}>✕</button>}
+            {action}
+            {onClose && <button onClick={onClose} style={{ marginLeft: 10, background: "rgba(0,0,0,0.25)", border: "1px solid " + C.line, borderRadius: 20, color: C.text, fontSize: 18, width: 36, height: 36, cursor: "pointer" }}>✕</button>}
           </div>
           {fill ? <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>{children}</div> : children}
         </div>
@@ -1631,7 +1634,9 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const ownImgs = !!settings.showImgs;
   const nowGilt = inGame ? " Gilt ab dem nächsten Spiel." : "";
   return (
-    <Modal title="Settings" onClose={onClose} page tight fill={big} maxW={big ? Math.min(vw - 60, 1500) : undefined}>
+    <Modal title="Settings" onClose={onClose} page tight fill={big} action={
+      <button onClick={() => { if (window.confirm("Alle Settings auf Standard zurücksetzen? (Namen, Eigene Kartenbilder und Backup bleiben unverändert.)")) setSettings({ ...settings, ...STANDARD_SETTINGS }); }}
+        style={{ ...btn(false), padding: "6px 14px", fontSize: 14, borderRadius: 18, background: "rgba(0,0,0,0.25)" }}>Standard</button>} maxW={big ? Math.min(vw - 60, 1500) : undefined}>
      <SetBigCtx.Provider value={big}>
       {/* iPad/Mac: Zeilen verteilen sich über die ganze Seitenhöhe; iPhone: kompakt */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", minmax(0, 1fr))", gap: (big ? 10 : 6) + "px " + (big ? 36 : 12) + "px", flex: big ? 1 : undefined, gridAutoRows: big ? "1fr" : undefined, alignItems: big ? "center" : undefined, paddingBottom: big ? 8 : 0 }}>
