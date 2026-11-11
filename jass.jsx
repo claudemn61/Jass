@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.1.4";
+const APP_VERSION = "2.1.5";
 
 const CHANGELOG = [
+  {
+    version: "2.1.5",
+    changes: [
+      "Jasstafel → Runden: Tippen auf eine Runde öffnet das Replay genau dieser Runde (bei Runden, die schon vor diesem Update gespielt wurden, nicht verfügbar)",
+    ],
+  },
   {
     version: "2.1.4",
     changes: [
@@ -303,15 +309,16 @@ function finishRound(g, rUpd, res, winner, extra) {
   }
   // Teile für die Jasstafel: der Weis wird sofort nach dem ersten Stich geschrieben, der Rest am Rundenende
   const weisT = [0, 1].map((i) => res.weis[i] * res.mult), restT = [0, 1].map((i) => res.total[i] - weisT[i]);
-  const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match, parts: [weisT, restT] };
+  // für das Replay: Austeilung, Ansage und alle (eingezogenen) Stiche dieser Runde
+  const rec = { no: r.no, start: r.start, chooser: r.chooser, decider: r.decider, pushed: r.pushed, trump: r.trump, tricks: (r.tricksLog || []).filter((t) => t.length === 4).concat(r.replayTricks || []), pile: null }; // Replay: immer alle Stiche einzeln
+  const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match, parts: [weisT, restT], rec };
   // Striche dieses Spiels (für das Entfernen bei Spielabbruch)
   const pend = { match: ((g.pend && g.pend.match) || [0, 0]).slice(), berg: ((g.pend && g.pend.berg) || [0, 0]).slice() };
   if (res.match != null) pend.match[res.match]++;
   if (berg != null && g.berg == null) pend.berg[berg]++;
   return {
     ...g, scores, berg, pend, history: g.history.concat([entry]),
-    // für das Replay: Austeilung, Ansage und alle (eingezogenen) Stiche dieser Runde
-    lastRound: { no: r.no, start: r.start, chooser: r.chooser, decider: r.decider, pushed: r.pushed, trump: r.trump, tricks: (r.tricksLog || []).filter((t) => t.length === 4).concat(r.replayTricks || []), pile: null }, // Replay: immer alle Stiche einzeln
+    lastRound: rec,
     over: winner != null ? { winner } : null,
     round: { ...r, trick: [], turn: null, phase: "roundEnd", result: res, ...(extra || {}) },
   };
@@ -1913,7 +1920,7 @@ function TafelRueckseite({ striche }) {
   );
 }
 
-function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) {
+function TafelModal({ game, deck, striche, onResetStriche, onRemove, onReplay, onClose }) {
   const [side, setSide] = useState("vorne");
   const [edit, setEdit] = useState(false); // Striche bearbeiten ein-/ausgeblendet
   return (
@@ -1960,8 +1967,9 @@ function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) 
           </thead>
           <tbody>
             {game.history.map((h) => (
-              <tr key={h.no} style={{ borderTop: "1px solid " + C.line, textAlign: "right" }}>
-                <td style={{ textAlign: "left", padding: 4, color: C.dim }}>{h.no}</td>
+              <tr key={h.no} onClick={h.rec && h.rec.tricks.length > 0 ? () => onReplay(h.rec) : undefined} title={h.rec ? "Replay dieser Runde" : undefined}
+                style={{ borderTop: "1px solid " + C.line, textAlign: "right", cursor: h.rec ? "pointer" : "default" }}>
+                <td style={{ textAlign: "left", padding: 4, color: C.dim }}>{h.rec ? "↺ " : ""}{h.no}</td>
                 <td style={{ textAlign: "left", padding: 4 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ModeIcon t={h.trump} deck={deck} size={16} />{modeName(h.trump, deck)}</span>
                   <span style={{ color: C.dim, fontSize: 12 }}> · {h.live ? "Weis geschrieben (laufende Runde)" : NAMES[h.decider] + (h.pushed ? " (geschoben)" : "")}</span>
@@ -2170,7 +2178,10 @@ function JassApp() {
   const [endHidden, setEndHidden] = useState(false); // Rundenabrechnung zugeklappt
   const [drag, setDrag] = useState(null); // Wischen: { c, x0, y0, dx, dy, moved }
   const [party, setParty] = useState(null); // Feier: { text, key }
-  const [replay, setReplay] = useState(false); // Replay der letzten Runde offen
+  const [replayRec, setReplayRec] = useState(null); // Replay offen: null oder Rundenprotokoll
+  const replay = !!replayRec;
+  const setReplay = (on) => setReplayRec(on ? (game.lastRound || null) : null);
+  // Replay-Knopf (Tisch): letzte Runde
   const [claimAnim, setClaimAnim] = useState(null); // Böcke-Auflegen-Animation läuft
   const [weisAsk, setWeisAsk] = useState(null); // Rückfrage «wirklich weisen?»: { c } = Karte, die danach gespielt wird
   // Austeilen: step = Anzahl bereits angekommener Päckchen (0..12), perm = Reihenfolge, in der
@@ -2753,13 +2764,13 @@ function JassApp() {
       )}
       {modal === "claim" && r.claimReport && <ClaimReportModal rep={r.claimReport} deck={deck} onClose={() => setModal(null)} />}
       {modal === "tafel" && <TafelModal game={tafelGame} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
-        onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
+        onReplay={(rec) => setReplayRec(rec)} onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
       {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
       {modal === "info" && <InfoModal stats={stats} onClose={() => setModal(null)} />}
       {party && (party.sad ? <Frustration key={party.key} text={party.text} /> : <Celebration key={party.key} text={party.text} />)}
-      {replay && game.lastRound && <ReplayView rec={game.lastRound} deck={deck} speed={settings.speed} onClose={() => setReplay(false)} />}
+      {replayRec && <ReplayView key={replayRec.no} rec={replayRec} deck={deck} speed={settings.speed} onClose={() => setReplay(false)} />}
       {imgModal}
     </div>
   );
