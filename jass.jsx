@@ -1966,8 +1966,8 @@ function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) 
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ModeIcon t={h.trump} deck={deck} size={16} />{modeName(h.trump, deck)}</span>
                   <span style={{ color: C.dim, fontSize: 12 }}> · {h.live ? "Weis geschrieben (laufende Runde)" : NAMES[h.decider] + (h.pushed ? " (geschoben)" : "")}</span>
                 </td>
-                <td style={{ padding: 4 }}>{h.total[0]}{h.match === 0 ? " M" : ""}</td>
-                <td style={{ padding: 4 }}>{h.total[1]}{h.match === 1 ? " M" : ""}</td>
+                <td style={{ padding: 4 }}>{h.total[0]}{h.parts && h.parts[0][0] > 0 ? " (" + h.parts[0][0] + ")" : ""}{h.match === 0 ? " M" : ""}</td>
+                <td style={{ padding: 4 }}>{h.total[1]}{h.parts && h.parts[0][1] > 0 ? " (" + h.parts[0][1] + ")" : ""}{h.match === 1 ? " M" : ""}</td>
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid " + C.gold, fontWeight: 800, textAlign: "right" }}>
@@ -2125,7 +2125,7 @@ function RoundEndModal({ game, deck, onNext, onTafel, onClose, onClaim }) {
           {row("Stiche (" + r.tricks[0] + ":" + r.tricks[1] + ")", res.trick[0], res.trick[1])}
           {row("Weis", res.weis[0], res.weis[1])}
           {row("Stöck", res.stoeck[0], res.stoeck[1])}
-          {row("Runde ×" + res.mult, res.total[0], res.total[1], true)}
+          {row("Runde ×" + res.mult, res.total[0] + (res.weis[0] > 0 ? " (" + res.weis[0] * res.mult + ")" : ""), res.total[1] + (res.weis[1] > 0 ? " (" + res.weis[1] * res.mult + ")" : ""), true)}
           {row("Gesamt", game.scores[0], game.scores[1], true)}
         </tbody>
       </table>
