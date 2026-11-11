@@ -1658,8 +1658,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Auto: alle Weise werden automatisch angesagt. Fragen: die App fragt vor deiner ersten Karte, ob du weisen willst; Partner und Gegner entscheiden im Hintergrund nach der Spielsituation.")}
         {row("sort", "Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Li → Re"], ["rl", "Re → Li"]]} />,
           "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
-        {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Knopf"], ["auto", "Auto"], ["aus", "Aus"]]} />,
-          "Knopf: du bedankst dich selbst (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
+        {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Manuell"], ["auto", "Auto"], ["aus", "Aus"]]} />,
+          "Manuell: du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
         {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Mehrere"], [false, "Einzeln"]]} />,
           "Mehrere: hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin und der Haufen geht an sein Team. Einzeln: auch dann wird jede Karte einzeln gespielt.")}
         {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "CH"], ["fr", "F"]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
