@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.1.5";
+const APP_VERSION = "2.1.6";
 
 const CHANGELOG = [
+  {
+    version: "2.1.6",
+    changes: [
+      "Neu: «Jassabend» (mehrere Spiele, Striche zählen weiter). Auf dem Startbildschirm, im Menü und nach Spielende: «Neues Spiel» setzt Punkte UND Striche zurück, «Neuer Jassabend» beginnt ein neues Spiel mit Punkten bei 0, die Striche bleiben. Info & Statistik zählt die Jassabende",
+    ],
+  },
   {
     version: "2.1.5",
     changes: [
@@ -2012,6 +2018,7 @@ function InfoModal({ stats, onClose }) {
         <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Statistik</div>
         <div>Spiele: {stats.played} · gewonnen: {stats.won}{stats.played ? " (" + Math.round((100 * stats.won) / stats.played) + "%)" : ""}</div>
         <div>Runden: {stats.rounds} · Matches: {stats.matches}</div>
+        <div>Jassabende: {stats.abende || 0}</div>
       </div>
       <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Änderungen</div>
       {CHANGELOG.map((e) => (
@@ -2105,7 +2112,7 @@ function ClaimReportModal({ rep, deck, onClose }) {
   );
 }
 
-function RoundEndModal({ game, deck, onNext, onTafel, onClose, onClaim }) {
+function RoundEndModal({ game, deck, onNext, onNextAbend, onTafel, onClose, onClaim }) {
   const r = game.round, res = r.result;
   const row = (label, a, b, bold) => (
     <tr style={{ borderTop: "1px solid " + C.line, fontWeight: bold ? 800 : 400 }}>
@@ -2148,7 +2155,10 @@ function RoundEndModal({ game, deck, onNext, onTafel, onClose, onClaim }) {
         <div style={{ width: 92, flexShrink: 0 }}><TafelVorderseite game={game} pad={5} /></div>
         <div style={{ fontSize: 13, color: C.dim }}>Jasstafel ansehen ›</div>
       </div>
-      <button onClick={onNext} style={{ ...btn(true), width: "100%", marginTop: 16 }}>{over ? "Neues Spiel" : "Nächste Runde"}</button>
+      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <button onClick={onNext} style={{ ...btn(!over), flex: 1 }}>{over ? "Neues Spiel" : "Nächste Runde"}</button>
+        {over && <button onClick={onNextAbend} style={{ ...btn(true), flex: 1 }}>Neuer Jassabend</button>}
+      </div>
     </Modal>
   );
 }
@@ -2170,7 +2180,7 @@ function JassApp() {
   const [settings, setSettingsRaw] = useState(() => ({ ...DEFAULT_SETTINGS, ...load("settings", {}) }));
   const [game, setGame] = useState(() => load("game", null));
   const [home, setHome] = useState(true);
-  const [stats, setStats] = useState(() => ({ played: 0, won: 0, rounds: 0, matches: 0, ...load("stats", {}) }));
+  const [stats, setStats] = useState(() => ({ played: 0, won: 0, rounds: 0, matches: 0, abende: 0, ...load("stats", {}) }));
   const [modal, setModal] = useState(null);
   const [menu, setMenu] = useState(false);
   const [toast, setToast] = useState(null);
@@ -2367,12 +2377,31 @@ function JassApp() {
       say("Neue Runde am Tisch – Partner: " + nm(2) + " · links: " + nm(3) + " · rechts: " + nm(1), 4500);
     }
   };
-  const goNextRound = () => { setEndHidden(false); if (game.over) startNew(); else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
-  const askNew = () => {
+  const goNextRound = (kind) => { setEndHidden(false); if (game.over) { if (kind === "abend") neuerAbend(); else neuesSpiel(); } else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
+  const stricheLeer = () => ({ match: [0, 0], sieg: [0, 0], berg: [0, 0] });
+  const hatStriche = () => ["match", "sieg", "berg"].some((k) => striche[k][0] || striche[k][1]);
+  // Laufendes Spiel abbrechen (mit Rückfrage); true = weiter
+  const abbrechen = (extra) => {
     if (game && !game.over && (game.history.length || (game.round && game.round.trickNo > 0))) {
-      if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen? Die Striche dieses Spiels werden entfernt.")) return;
+      if (!window.confirm("Laufendes Spiel abbrechen und neu beginnen? " + extra)) return false;
       setStats((s) => ({ ...s, played: s.played + 1 }));
-      // Spielabbruch: Striche dieses Spiels entfernen, frühere bleiben
+      return true;
+    }
+    return null; // kein laufendes Spiel
+  };
+  // «Neues Spiel»: Punkte UND Striche zurücksetzen
+  const neuesSpiel = () => {
+    const ab = abbrechen("Punkte und Striche werden gelöscht.");
+    if (ab === false) return;
+    if (ab === null && hatStriche() && !window.confirm("Neues Spiel: die Striche werden gelöscht. Fortfahren?")) return;
+    setStriche(stricheLeer());
+    startNew();
+  };
+  // «Neuer Jassabend»: Punkte bei 0, Striche bleiben (Striche eines abgebrochenen Spiels werden entfernt)
+  const neuerAbend = () => {
+    const ab = abbrechen("Die Striche dieses Spiels werden entfernt.");
+    if (ab === false) return;
+    if (ab) {
       const pd = game.pend;
       if (pd) setStriche((st) => ({
         ...st,
@@ -2380,6 +2409,7 @@ function JassApp() {
         berg: [0, 1].map((t) => Math.max(0, st.berg[t] - pd.berg[t])),
       }));
     }
+    setStats((s) => ({ ...s, abende: (s.abende || 0) + 1 }));
     startNew();
   };
 
@@ -2401,7 +2431,8 @@ function JassApp() {
         <div style={{ fontSize: 40, letterSpacing: 1, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.25)" }}>Bea’s Jass</div>
         <div style={{ color: "rgba(240,240,232,0.7)", fontSize: 15, marginTop: -10, fontFamily: CHALK_FONT }}>Schieber gegen den Computer</div>
         {canResume && <button onClick={() => setHome(false)} style={{ ...btn(true), width: 240, marginTop: 10 }}>Weiterspielen ({game.scores[0]} : {game.scores[1]})</button>}
-        <button onClick={canResume ? askNew : startNew} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
+        <button onClick={neuesSpiel} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
+        <button onClick={neuerAbend} style={{ ...btn(false), width: 240 }}>Neuer Jassabend</button>
         <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Settings</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
@@ -2743,7 +2774,8 @@ function JassApp() {
 
       {menu && (
         <Menu onClose={() => setMenu(false)} items={[
-          ["Neues Spiel", askNew],
+          ["Neues Spiel", neuesSpiel],
+          ["Neuer Jassabend", neuerAbend],
           ["Jasstafel", () => setModal("tafel")],
           r.lastTrick ? ["Letzter Stich", () => setModal("last")] : null,
           ["Settings", () => setModal("settings")],
@@ -2755,11 +2787,12 @@ function JassApp() {
       {deal && <DealAnim key={deal.key} w={Math.round(cw * 0.55)} origin={deal.origin} start={deal.start} />}
       {weisAsk && <WeisAskModal ws={E.findWeis(r.start[0])} deck={deck} onAnswer={answerWeis} />}
       {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
-      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={goNextRound} />}
+      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => goNextRound("spiel")} onNextAbend={() => goNextRound("abend")} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
           <button onClick={() => setEndHidden(false)} style={{ ...btn(false), background: "rgba(10,30,22,0.92)" }}>Abrechnung</button>
-          <button onClick={goNextRound} style={btn(true)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
+          <button onClick={() => goNextRound("spiel")} style={btn(!game.over)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
+          {game.over && <button onClick={() => goNextRound("abend")} style={btn(true)}>Neuer Jassabend</button>}
         </div>
       )}
       {modal === "claim" && r.claimReport && <ClaimReportModal rep={r.claimReport} deck={deck} onClose={() => setModal(null)} />}
