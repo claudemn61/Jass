@@ -301,7 +301,9 @@ function finishRound(g, rUpd, res, winner, extra) {
     const hit = [0, 1].filter((i) => scores[i] >= lim);
     if (hit.length) berg = hit.length === 1 ? hit[0] : (scores[0] >= scores[1] ? 0 : 1);
   }
-  const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match };
+  // Teile für die Jasstafel: der Weis wird sofort nach dem ersten Stich geschrieben, der Rest am Rundenende
+  const weisT = [0, 1].map((i) => res.weis[i] * res.mult), restT = [0, 1].map((i) => res.total[i] - weisT[i]);
+  const entry = { no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: res.total, match: res.match, parts: [weisT, restT] };
   // Striche dieses Spiels (für das Entfernen bei Spielabbruch)
   const pend = { match: ((g.pend && g.pend.match) || [0, 0]).slice(), berg: ((g.pend && g.pend.berg) || [0, 0]).slice() };
   if (res.match != null) pend.match[res.match]++;
@@ -1764,8 +1766,8 @@ function Tally({ n, sx, sy, ux, uy, nx, ny, len, step, seed }) {
 function tafelStriche(history, team) {
   const hundert = []; // Reihenfolge der Zeichen oben: "I" oder "V"
   let f = 0, z = 0, einer = 0;
-  history.forEach((e) => {
-    const p = e.total[team];
+  history.forEach((e0) => (e0.parts || [e0.total]).forEach((part) => {
+    const p = part[team];
     const hund = Math.floor(p / 100);
     for (let i = 0; i < Math.floor(hund / 5); i++) hundert.push("V");
     for (let i = 0; i < hund % 5; i++) hundert.push("I");
@@ -1774,7 +1776,7 @@ function tafelStriche(history, team) {
     z += Math.floor(r / 20);
     einer += r % 20;
     if (einer >= 11) { z++; einer -= 20; }
-  });
+  }));
   return { hundert, f, z, einer };
 }
 
@@ -1962,7 +1964,7 @@ function TafelModal({ game, deck, striche, onResetStriche, onRemove, onClose }) 
                 <td style={{ textAlign: "left", padding: 4, color: C.dim }}>{h.no}</td>
                 <td style={{ textAlign: "left", padding: 4 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ModeIcon t={h.trump} deck={deck} size={16} />{modeName(h.trump, deck)}</span>
-                  <span style={{ color: C.dim, fontSize: 12 }}> · {NAMES[h.decider]}{h.pushed ? " (geschoben)" : ""}</span>
+                  <span style={{ color: C.dim, fontSize: 12 }}> · {h.live ? "Weis geschrieben (laufende Runde)" : NAMES[h.decider] + (h.pushed ? " (geschoben)" : "")}</span>
                 </td>
                 <td style={{ padding: 4 }}>{h.total[0]}{h.match === 0 ? " M" : ""}</td>
                 <td style={{ padding: 4 }}>{h.total[1]}{h.match === 1 ? " M" : ""}</td>
@@ -2504,6 +2506,15 @@ function JassApp() {
   // Weis der Runde beim Spieler: nach dem ersten Stich zeigt das Team mit dem
   // höchsten Weis seine Weise (wie am echten Tisch)
   // Weise eines Spielers nach dem ersten Stich: gültige (Siegerteam) vollständig, unterlegene nur als Zahl
+  // Gültige Weise werden direkt nach dem ersten Stich geschrieben (vor der nächsten Karte): Kopfzeile
+  // und Jasstafel zeigen sie sofort; am Rundenende sind sie ohnehin im Rundenergebnis enthalten.
+  const mW = r.trump != null ? E.multiplier(r.trump, game.mult) : 1;
+  const weisLive = (r.phase === "play" || r.phase === "trickDone") && r.trickNo >= 1 && r.weis && r.weis.winnerTeam != null
+    ? [0, 1].map((t) => (t === r.weis.winnerTeam ? r.weis.pts[t] * mW : 0)) : [0, 0];
+  const liveScores = [game.scores[0] + weisLive[0], game.scores[1] + weisLive[1]];
+  const tafelGame = weisLive[0] + weisLive[1] > 0
+    ? { ...game, scores: liveScores, history: game.history.concat([{ no: r.no, trump: r.trump, decider: r.decider, pushed: r.pushed, total: weisLive, match: null, live: true }]) }
+    : game;
   const weisOf = (p) => (r.trickNo >= 1 && r.weis && r.weis.winnerTeam != null ? r.weis.byPlayer[p] : []);
   const weisValid = (p) => !!r.weis && r.weis.winnerTeam === E.team(p);
   // Ansage im ersten Stich: sobald der Spieler seine erste Karte gelegt hat, erscheint bei ihm nur die
@@ -2607,8 +2618,8 @@ function JassApp() {
               ) : (
                 <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
                   <span style={{ fontSize: 13, color: C.dim, overflow: "hidden", textOverflow: "ellipsis" }}>{teamName(t)}</span>
-                  <span style={{ fontSize: 19, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{game.scores[t]}</span>
-                  {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim }}>−{game.target - game.scores[t]}</span>}
+                  <span style={{ fontSize: 19, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{liveScores[t]}</span>
+                  {liveScores[t] > 1500 && liveScores[t] < game.target && <span style={{ fontSize: 11, color: C.dim }}>−{game.target - liveScores[t]}</span>}
                 </div>
               ))}
             </div>
@@ -2622,9 +2633,9 @@ function JassApp() {
             ) : (
               <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 4, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
                 <span style={{ fontSize: 11, color: C.dim }}>{t === 0 ? "Wir" : "Gegner"}</span>
-                <span style={{ fontSize: 18, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{game.scores[t]}</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{liveScores[t]}</span>
                 {/* ab 1500 Punkten zusätzlich: wie viel fehlt bis zum Ziel */}
-                {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim }}>−{game.target - game.scores[t]}</span>}
+                {liveScores[t] > 1500 && liveScores[t] < game.target && <span style={{ fontSize: 11, color: C.dim }}>−{game.target - liveScores[t]}</span>}
               </div>
             ))}
           </div>
@@ -2741,7 +2752,7 @@ function JassApp() {
         </div>
       )}
       {modal === "claim" && r.claimReport && <ClaimReportModal rep={r.claimReport} deck={deck} onClose={() => setModal(null)} />}
-      {modal === "tafel" && <TafelModal game={game} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
+      {modal === "tafel" && <TafelModal game={tafelGame} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
         onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
