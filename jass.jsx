@@ -1466,7 +1466,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Fest: Partner, links und rechts bleiben wie in den Namen oben. Zufällig: bei jedem neuen Spiel werden die drei Mitspieler neu auf die Plätze gesetzt – du hast nicht immer denselben Partner. Leere Namen behalten den Standardnamen des Platzes.")}
         {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Schweizer"], ["fr", "Französ."]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
         {row("ziel", "Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, "Wer zuerst die Zielpunkte erreicht, gewinnt." + nowGilt, "phone")}
-        {row("mult", "Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Einfach"]]} />,
+        {row("mult", "Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "1× / 2× / 3×"], ["einfach", "Alles 1×"]]} />,
           (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + nowGilt)}
         {row("level", "Spielstärke", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
           "Normal: einfache Faustregeln. Stark: rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
