@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.1.0";
+const APP_VERSION = "2.1.1";
 
 const CHANGELOG = [
+  {
+    version: "2.1.1",
+    changes: [
+      "Anleitung: Bedanken ist eine Möglichkeit («kann sich bedanken»), Eigene Bilder nur aus Copyright-Gründen lokal, «Alle Böcke auflegen» als optionale Möglichkeit, «Computer-Spieler» heisst «Spiel-Strategie»",
+    ],
+  },
   {
     version: "2.1.0",
     changes: [
@@ -812,7 +818,7 @@ function CardImagesModal({ deck, imgs, reload, settings, setSettings, onClose })
   return (
     <Modal title="Eigene Kartenbilder" onClose={onClose} wide page>
       <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 12 }}>
-        Fotos oder Scans deiner eigenen Karten ({deck === "ch" ? "Deutschschweizer" : "französische"} Karten). Die Bilder bleiben <b style={{ color: C.text }}>nur auf diesem Gerät</b> und werden nirgends hochgeladen.
+        Fotos oder Scans deiner eigenen Karten ({deck === "ch" ? "Deutschschweizer" : "französische"} Karten). Die Bilder bleiben <b style={{ color: C.text }}>aus Copyright-Gründen nur auf diesem Gerät</b> und werden nirgends hochgeladen.
         Bei mehreren Bildern gilt die Reihenfolge der Dateinamen (bei Fotos = Aufnahme-Reihenfolge). Auch PDF möglich: jede Seite zählt wie ein Bild. Einzelne Karte: Feld antippen.
       </div>
 
@@ -1498,7 +1504,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
               <button onClick={() => set("showImgs", false)} style={{ ...btn(false), flex: 1, padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>Ausblenden</button>
             </div>
           : <button onClick={() => set("showImgs", true)} style={{ ...btn(false), width: "100%", padding: "5px 6px", fontSize: 13, borderRadius: 10 }}>Einblenden ▾</button>,
-          "Fotos/Scans deiner eigenen Karten, Rückseite und Farbsymbole – nur auf diesem Gerät gespeichert.")}
+          "Fotos/Scans deiner eigenen Karten, Rückseite und Farbsymbole – aus Copyright-Gründen nur auf diesem Gerät gespeichert.")}
       </div>
     </Modal>
   );
@@ -1520,22 +1526,22 @@ function RulesModal({ onClose, deck }) {
       {h("Weis und Stöck")}
       {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Under 200, vier Nell 150, vier Ass/König/Ober/Zehner 100. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
-      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, muss sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Einstellungen lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
+      {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, kann sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Einstellungen lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
       {h("Offene Karten (Lernmodus)")}
       {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
-      {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben nur auf diesem Gerät gespeichert.")}
+      {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben aus Copyright-Gründen nur auf diesem Gerät gespeichert.")}
       {h("Mitspieler neu zuordnen")}
       {p("Mit der Einstellung «Mitspieler» werden bei jedem neuen Spiel die drei anderen Spieler zufällig auf die Plätze Partner, links und rechts verteilt. Wer dein Partner ist, ändert sich also von Spiel zu Spiel; innerhalb eines Spiels bleibt es gleich.")}
       {h("Weisen nachfragen")}
       {p("Stellst du «Weis» auf «Nachfragen», fragt die App vor deiner ersten Karte, ob du wirklich weisen willst. Partner und Gegner entscheiden im Hintergrund: Weise ab 50 Punkten werden immer angesagt, ein Dreiblatt nur, wenn es keine hohen Trümpfe verrät oder ein Team nahe am Ziel ist. Ein nicht angesagter Weis zählt nicht und wird nicht gezeigt.")}
-      {h("Alle Böcke auflegen")}
-      {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (keiner der anderen drei Spieler hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat sonst niemand mehr Trumpf, und einen laufenden Stich gewinnt er selbst sicher, sodass er danach ausspielt; ihm gehören also alle restlichen Stiche), wirft er alle Karten auf einmal aufs Feld. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Bei dir geschieht das automatisch, sobald du in dieser Lage eine Karte spielst.")}
+      {h("Alle Böcke auflegen (optional)")}
+      {p("Hat ein Spieler, wenn er an der Reihe ist, nur noch unschlagbare Böcke (keiner der anderen drei Spieler hat eine höhere Karte der Farbe, bei Nicht-Trumpf-Karten hat sonst niemand mehr Trumpf, und einen laufenden Stich gewinnt er selbst sicher, sodass er danach ausspielt; ihm gehören also alle restlichen Stiche), kann er alle Karten auf einmal aufs Feld werfen. Die anderen werfen ihre Karten ebenfalls hin, und der ganze Haufen geht an sein Team (inkl. 5 Punkte für den letzten Stich). Das ist optional und lässt sich in den Einstellungen unter «Bock-Karten» ein- oder ausschalten. Bei dir geschieht es automatisch, sobald du in dieser Lage eine Karte spielst.")}
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
       {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Spiele; bei Spielabbruch werden die Striche dieses Spiels entfernt, einzelne Striche lassen sich löschen): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
-      {h("Computer-Spieler")}
+      {h("Spiel-Strategie")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
   );
