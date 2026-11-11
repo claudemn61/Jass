@@ -1401,7 +1401,8 @@ async function exportBackup() {
   const blob = new Blob([JSON.stringify(backup)], { type: "application/octet-stream" });
   const file = new File([blob], name, { type: "application/octet-stream" });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: "Jass-Backup" }); return "geteilt"; }
+    // nur die Datei teilen (kein title/text): iOS legt sonst bei manchen Zielen zusätzlich eine Textdatei an
+    try { await navigator.share({ files: [file] }); return "geteilt"; }
     catch (e) { if (e && e.name === "AbortError") return "abgebrochen"; }
   }
   const url = URL.createObjectURL(blob);
