@@ -2475,13 +2475,13 @@ function JassApp() {
         <div style={{ fontSize: 40, letterSpacing: 1, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.25)" }}>Bea’s Jass</div>
         <div style={{ color: "rgba(240,240,232,0.7)", fontSize: 15, marginTop: -10, fontFamily: CHALK_FONT }}>Schieber gegen den Computer</div>
         {canResume && <button onClick={() => setHome(false)} style={{ ...btn(true), width: 240, marginTop: 10 }}>Weiterspielen ({game.scores[0]} : {game.scores[1]})</button>}
-        <div onClick={() => neuesSpiel()} style={{ ...btn(!canResume), width: 240, boxSizing: "border-box", marginTop: canResume ? 0 : 10, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "10px 16px 8px" }}>
+        <div onClick={() => neuesSpiel()} style={{ ...btn(!canResume), width: 240, boxSizing: "border-box", marginTop: canResume ? 0 : 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 16px" }}>
           <span>Neues Spiel</span>
-          <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <div onClick={(e) => e.stopPropagation()}>
             <SerieCheck settings={settings} setSettings={setSettings} small dark={!canResume} />
-            <div style={{ fontSize: 11, fontWeight: 400, color: canResume ? C.dim : "rgba(26,18,0,0.65)" }}>{settings.serie ? "Die Striche zählen weiter." : "Punkte und Striche starten bei 0."}</div>
           </div>
         </div>
+        <div style={{ fontSize: 11, color: C.dim, marginTop: -8, fontFamily: CHALK_FONT }}>{settings.serie ? "Serie: Die Striche zählen weiter." : "Ohne Serie starten Punkte und Striche bei 0."}</div>
         <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Settings</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
