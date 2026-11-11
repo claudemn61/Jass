@@ -1667,13 +1667,13 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
         {!big && row("rows", "Kartenreihen", <Choice value={settings.handRows === 2 ? 2 : 1} onChange={(v) => set("handRows", v)} options={[[1, "1 Reihe"], [2, "2 Reihen"]]} />,
           "Nur iPhone: deine Hand in zwei Reihen mit grösseren Karten – besser lesbar.")}
+        {row("play", "Karte spielen", <Choice value={settings.playMode === "swipe" ? "swipe" : "tap"} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["tap", "Tippen"], ["swipe", "Wischen"]]} />,
+          "Tippen: Karte antippen spielt sie sofort. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.")}
         {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Manuell"], ["auto", "Auto"], ["aus", "Aus"]]} />,
           "Manuell: du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
         {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Mehrere"], [false, "Einzeln"]]} />,
           "Mehrere: hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin und der Haufen geht an sein Team. Einzeln: auch dann wird jede Karte einzeln gespielt.")}
         {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "CH"], ["fr", "F"]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
-        {row("play", "Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "2× tippen"], ["tap", "1× tippen"], ["swipe", "Wischen"]]} />,
-          "2× tippen: antippen und bestätigen. 1× tippen: sofort spielen. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.", "phone")}
         {row("backup", "Backup", <BackupRow />, "Eine Datei mit Settings, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes Gerät übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben.")}
         {/* Eigene Kartenbilder: ein-/ausblendbar */}
         {row("imgs", "Eigene Kartenbilder", ownImgs
@@ -2526,7 +2526,7 @@ function JassApp() {
   // (quer begrenzt, damit sie nicht an die Plätze stossen)
   const tw = Math.round(cw * (big ? (vw > vh ? 0.86 : 1.05) : 1.08)), th = Math.round(tw * 1.5);
 
-  const playMode = settings.playMode || (settings.oneTap ? "tap" : "confirm");
+  const playMode = settings.playMode === "swipe" ? "swipe" : "tap"; // (früher gab es auch «2× tippen»)
   // Eigene Karte spielen; vor der ersten Karte der Runde ggf. nach dem Weis fragen
   const humanPlay = (c) => {
     if (WEISASK && r.weisPending && r.phase === "play" && r.hands[0].length === 9) { setWeisAsk({ c }); return; }
