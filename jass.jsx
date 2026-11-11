@@ -1536,7 +1536,7 @@ function RulesModal({ onClose, deck }) {
       {h("Kartenwerte")}
       {p("Trumpf: Under 20, Nell (9) 14, Ass 11, 10 10, König 4, Ober 3. Übrige Farben: Ass 11, 10 10, König 4, Ober 3, Under 2. Obenabe/Undenufe: zusätzlich Achter 8; bei Undenufe zählt der Sechser 11 statt des Asses. Letzter Stich +5. Total 157 pro Runde, alle Stiche (Match) 257.")}
       {h("Weis und Stöck")}
-      {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt (die gültigen des Siegerteams mit Farbe und Karte, die unterlegenen Ansagen der anderen nur als ausgegraute Zahl): Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Gleiche 100 (alle Kartenwerte von 6 bis Ass, auch bei Obenabe und Undenufe), vier Nell 150, vier Under 200; ein Sechsblatt 150, Siebenblatt 200, Achtblatt 250, Neunblatt 300. Kreuzweise (eine Karte in zwei Weisen) sind gültig. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. Bei gleichhohen Weisen gilt der Reihe nach: Eine Reihenfolge geht vor vier Gleichen; die höhere Karte des Weis (bei Undenufe die tiefste); bei gleicher höchster Karte die in der Trumpffarbe; sonst, wer zuerst an der Reihe ist (Vorhand). Ein geschriebener Weis bleibt auch bei einem Match der Gegner bestehen. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
+      {p("Weis werden automatisch erkannt. Im ersten Stich erscheint bei jedem Spieler mit seiner ersten Karte nur die Weishöhe als weisse Zahl (wie am Tisch: nur der höchste Wert wird angesagt); nach dem ersten Stich werden sie gezeigt (die gültigen des Siegerteams mit Farbe und Karte, die unterlegenen Ansagen der anderen nur als ausgegraute Zahl): Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Gleiche 100 (alle Kartenwerte von 6 bis Ass, auch bei Obenabe und Undenufe), vier Nell 150, vier Under 200; ein Sechsblatt 150, Siebenblatt 200, Achtblatt 250, Neunblatt 300. Kreuzweise (eine Karte in zwei Weisen) sind gültig. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. Bei gleichhohen Weisen gilt der Reihe nach: Eine Reihenfolge geht vor vier Gleichen; die höhere Karte des Weis (bei Undenufe die tiefste); bei gleicher höchster Karte die in der Trumpffarbe; sonst, wer zuerst an der Reihe ist (Vorhand). Ein geschriebener Weis bleibt auch bei einem Match der Gegner bestehen. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, kann sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Einstellungen lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
       {h("Offene Karten (Lernmodus)")}
@@ -2348,7 +2348,22 @@ function JassApp() {
   // Weise eines Spielers nach dem ersten Stich: gültige (Siegerteam) vollständig, unterlegene nur als Zahl
   const weisOf = (p) => (r.trickNo >= 1 && r.weis && r.weis.winnerTeam != null ? r.weis.byPlayer[p] : []);
   const weisValid = (p) => !!r.weis && r.weis.winnerTeam === E.team(p);
+  // Ansage im ersten Stich: sobald der Spieler seine erste Karte gelegt hat, erscheint bei ihm nur die
+  // Weishöhe (höchster Weis) als weisse Zahl. Sie bleibt bis der erste Stich entschieden ist; danach
+  // gilt die bisherige Darstellung (gültige mit Farbe/Karte, unterlegene grau).
+  const announcing = r.trickNo === 0 && r.trump != null && !!r.weis && (r.phase === "play" || r.phase === "trickDone");
   const WeisChips = ({ p, align }) => {
+    if (announcing) {
+      const mine = r.weis.byPlayer[p] || [];
+      if (!mine.length || !r.trick.some((e) => e.p === p)) return null;
+      const top = Math.max(...mine.map((w) => w.pts));
+      return (
+        <div style={{ display: "flex", justifyContent: align === "flex-start" ? "flex-start" : align === "flex-end" ? "flex-end" : "center", marginTop: 4 }}>
+          <style>{`@keyframes jassAnsage { 0% { transform: scale(0.3); opacity: 0; } 55% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }`}</style>
+          <div key={"ans" + p} style={{ fontSize: 19 * uiK, fontWeight: 800, color: "#fff", padding: "0 10px", borderRadius: 10, background: "rgba(0,0,0,0.5)", lineHeight: 1.35, animation: "jassAnsage 0.45s ease-out both" }}>{top}</div>
+        </div>
+      );
+    }
     const ws = weisOf(p);
     if (!ws.length) return null;
     return (
@@ -2472,7 +2487,7 @@ function JassApp() {
           <TafelBadge onClick={() => setModal("tafel")} />
         </div>
         {wonBy[0] > 0 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)" }}><TrickPile n={wonBy[0]} w={pileW} /></div>}
-        {weisOf(0).length > 0 && <div style={{ position: "absolute", bottom: wonBy[0] > 0 ? 10 + pileW + 22 : 10, left: "50%", transform: "translateX(-50%)" }}><WeisChips p={0} /></div>}
+        {(announcing || weisOf(0).length > 0) && <div style={{ position: "absolute", bottom: wonBy[0] > 0 ? 10 + pileW + 22 : 10, left: "50%", transform: "translateX(-50%)" }}><WeisChips p={0} /></div>}
         <Seat p={3} style={{ top: "42%", left: 8 }} />
         <Seat p={1} style={{ top: "42%", right: 8 }} />
         <div style={{ position: "absolute", left: "50%", top: big && vw > vh ? "57%" : "50%", width: 0, height: 0 }}>
