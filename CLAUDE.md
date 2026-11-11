@@ -39,6 +39,11 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
   (vier Gleiche 6–Ass = 100, Nell 150, Under 200; Folgen 20/50/100/150/200/250/300; Rangfolge bei
   Gleichstand: Folge vor Vierling, höhere Karte (Undenufe: tiefste), Trumpffarbe, Vorhand).
   Prüfung: `node tests/weis.js` (muss «alles ok» melden).
+- Einstellung `teamDraw` (Wer spielt zusammen): bei «Neues Spiel» zieht jeder eine Karte (`DrawScreen`, du tippst
+  auf den Stapel); die zwei höchsten spielen zusammen (Gleichstand in der Mitte → nochmals ziehen,
+  `drawTeamStep`), dann du gegen den Spieler links: tiefere Karte gibt, das Ass gilt als tiefste und gibt
+  (`drawDealerWinner`). Ergebnis → `game.seatPerm` + `nextChooser` (Vorhand = rechts vom Geber).
+  Prüfung: `node tests/draw.js`.
 - Einstellung `dealMode` (Austeilen): `geber` (Karten fliegen vom Geber = Spieler vor dem ersten Ansager,
   ausgeteilt ab dem ersten Ansager), `mitte`, `aus`; Animation 5 s, 12 Päckchen à 3 (`DealAnim`).
 - Einstellungen `weisAsk` (Rückfrage vor deiner ersten Karte; Computer entscheiden per `botWeisDecision`;

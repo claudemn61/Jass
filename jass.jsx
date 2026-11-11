@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.1.3";
+const APP_VERSION = "2.1.4";
 
 const CHANGELOG = [
+  {
+    version: "2.1.4",
+    changes: [
+      "Neue Einstellung «Wer spielt zusammen»: Zu Beginn jedes neuen Spiels ziehen alle eine Karte aus dem Stapel (du tippst selbst), die zwei höchsten spielen zusammen; danach ziehst du gegen den Spieler links, die tiefere Karte gibt im ersten Spiel (das Ass muss geben)",
+    ],
+  },
   {
     version: "2.1.3",
     changes: [
@@ -212,12 +218,12 @@ function startRound(g) {
     },
   };
 }
-function newGame(settings) {
+function newGame(settings, pre) {
   // seatPerm[sitz] = Nummer in der Namensliste der Einstellungen (0 = du); mit «Mitspieler zufällig»
   // werden die drei anderen bei jedem neuen Spiel gemischt
   const others = [1, 2, 3];
   if (settings.shuffleSeats) for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
-  return startRound({ id: Date.now(), scores: [0, 0], history: [], nextChooser: Math.floor(Math.random() * 4), target: settings.target, mult: settings.mult, over: null, round: null, seatPerm: [0].concat(others) });
+  return startRound({ id: Date.now(), scores: [0, 0], history: [], nextChooser: pre ? pre.nextChooser : Math.floor(Math.random() * 4), target: settings.target, mult: settings.mult, over: null, round: null, seatPerm: pre ? pre.seatPerm : [0].concat(others) });
 }
 function doPush(g) {
   const r = g.round;
@@ -1319,6 +1325,137 @@ function DealAnim({ w, origin, start }) {
   );
 }
 
+// ── Wer spielt zusammen? (Karten ziehen) ──────────────────────────────────
+// Zu Beginn eines neuen Spiels zieht jeder eine Karte aus dem noch unverteilten Stapel; du tippst
+// selbst auf den Stapel, die anderen ziehen automatisch. Die beiden höchsten Karten spielen zusammen.
+// Danach zieht ihr beide (du und der Spieler links von dir) nochmals: die tiefere Karte gibt im ersten
+// Spiel; das Ass gilt dabei als tiefste Karte und muss geben. Gleiche Werte: nochmals ziehen.
+// Karten-«Rang»: 6 = 0 … Ass = 8 (E.rankOf).
+
+// Eine Auswertung der Team-Auslosung. cards: {spieler: karte}; cand: Spieler, die um die Plätze
+// ziehen; k: wie viele der obersten Plätze unter ihnen noch zu vergeben sind.
+// Ergebnis: { top: [spieler…] } (entschieden) oder { top: [bereits sicher], tie: [spieler…], k: Rest }
+function drawTeamStep(cards, cand, k) {
+  const rank = (p) => E.rankOf(cards[p]);
+  const sorted = cand.slice().sort((a, b) => rank(b) - rank(a));
+  if (rank(sorted[k - 1]) > rank(sorted[k])) return { top: sorted.slice(0, k) };
+  const edge = rank(sorted[k - 1]);
+  const above = sorted.filter((p) => rank(p) > edge);
+  const tie = sorted.filter((p) => rank(p) === edge);
+  return { top: above, tie, k: k - above.length };
+}
+// Wer gibt? Zwei Spieler mit je einer Karte. Das Ass zählt als tiefste Karte. null = Gleichstand.
+function drawDealerWinner(a, ca, b, cb) {
+  const key = (c) => (E.rankOf(c) === 8 ? -1 : E.rankOf(c));
+  if (key(ca) === key(cb)) return null;
+  return key(ca) < key(cb) ? a : b; // wer die tiefere Karte hat, gibt
+}
+
+function DrawScreen({ settings, deck, onDone }) {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const nm = (i) => (i === 0 ? ((settings.names && settings.names[0]) || "").trim() || "Du" : ((settings.names && settings.names[i]) || "").trim() || "Mitspieler " + i);
+  const [pile] = useState(() => E.shuffle(E.ALL, Math.random));
+  const pos = useRef(0);
+  const [cards, setCards] = useState({});          // sichtbare Karten je Spieler
+  const [pending, setPending] = useState([0, 1, 2, 3]); // wer noch ziehen muss (in dieser Reihenfolge)
+  const [stage, setStage] = useState("team");      // team | dealer | fertig
+  const [cand, setCand] = useState({ list: [0, 1, 2, 3], k: 2, sure: [] }); // Auslosung der Teams
+  const [team, setTeam] = useState(null);          // [a, b] = zwei Spieler, die zusammen spielen
+  const [seatPerm, setSeatPerm] = useState(null);  // Sitz → Spieler (0 = du), nach der Team-Auslosung
+  const [giver, setGiver] = useState(null);
+  const [msg, setMsg] = useState("");
+  const take = () => pile[pos.current++];
+  const seatOf = (p) => (seatPerm ? seatPerm.indexOf(p) : p); // Anzeige-Platz: 0 unten, 1 rechts, 2 oben, 3 links
+
+  // Ziehen: du per Tipp, die anderen automatisch (kurze Pause)
+  const drawFor = (p) => { setCards((c) => ({ ...c, [p]: take() })); setPending((q) => q.slice(1)); };
+  useEffect(() => {
+    if (!pending.length || pending[0] === 0) return;
+    const t = setTimeout(() => drawFor(pending[0]), 650);
+    return () => clearTimeout(t);
+  }, [pending]);
+
+  // Auswerten, sobald alle gezogen haben
+  useEffect(() => {
+    if (pending.length) return;
+    const t = setTimeout(() => {
+      if (stage === "team") {
+        const res = drawTeamStep(cards, cand.list, cand.k);
+        if (res.tie) {
+          const sure = cand.sure.concat(res.top);
+          setCand({ list: res.tie, k: res.k, sure });
+          setMsg("Gleiche Karten bei " + res.tie.map(nm).join(" und ") + " – nochmals ziehen");
+          setPending(res.tie.slice().sort((a, b) => a - b));
+        } else {
+          const top = cand.sure.concat(res.top);
+          const rest = [0, 1, 2, 3].filter((p) => !top.includes(p));
+          const mine = top.includes(0) ? top : rest;      // dein Team
+          const partner = mine.find((p) => p !== 0);
+          const opp = [1, 2, 3].filter((p) => p !== partner);
+          if (Math.random() < 0.5) opp.reverse();
+          setTeam(mine); setSeatPerm([0, opp[0], partner, opp[1]]);
+          setMsg("Zusammen spielen: " + nm(0) + " & " + nm(partner) + " gegen " + nm(opp[0]) + " & " + nm(opp[1]));
+          setStage("teamfertig");
+        }
+      } else if (stage === "dealer") {
+        const L = seatPerm[3];
+        const w = drawDealerWinner(0, cards[0], L, cards[L]);
+        if (w == null) { setMsg("Gleiche Karten – nochmals ziehen"); setPending([0, L]); }
+        else { setGiver(w); setMsg(nm(w) + " gibt im ersten Spiel"); setStage("fertig"); }
+      }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [pending, stage]);
+
+  const toDealer = () => { setCards({}); setPending([0, seatPerm[3]]); setMsg("Wer gibt? Du ziehst gegen " + nm(seatPerm[3]) + " (links von dir)"); setStage("dealer"); };
+  const finish = () => onDone({ seatPerm, nextChooser: giver === 0 ? 1 : 0 }); // Vorhand = rechts vom Geber
+
+  const w = Math.max(56, Math.min(96, Math.floor(vw * 0.2), Math.floor(vh * 0.13)));
+  const myTurn = pending.length > 0 && pending[0] === 0;
+  const Slot = ({ p }) => {
+    const mate = team && team.includes(p);
+    return (
+      <div style={{ textAlign: "center", minWidth: w + 20 }}>
+        <div style={{ height: Math.round(w * 1.5), display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: 6 }}>
+          {cards[p] != null
+            ? <div key={cards[p]} style={{ animation: "jassZieh 0.45s ease-out both" }}><Card id={cards[p]} deck={deck} w={w} /></div>
+            : <div style={{ width: w, height: Math.round(w * 1.5), borderRadius: w * 0.1, border: "2px dashed rgba(255,255,255,0.25)" }} />}
+        </div>
+        <div style={{ display: "inline-block", padding: "3px 12px", borderRadius: 14, background: mate ? C.gold : "rgba(0,0,0,0.5)", color: mate ? "#1a1200" : C.text, fontWeight: 700, fontSize: 14 }}>{nm(p)}</div>
+        {giver === p && <div style={{ marginTop: 4, fontSize: 13, color: C.gold, fontWeight: 700 }}>gibt</div>}
+      </div>
+    );
+  };
+  const at = (seat) => [0, 1, 2, 3].find((p) => seatOf(p) === seat);
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 150, background: C.felt2, color: C.text, overflow: "hidden", display: "flex", flexDirection: "column", textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}>
+      <style>{`@keyframes jassZieh { 0% { transform: translateY(-40px) scale(0.6) rotate(-8deg); opacity: 0; } 100% { transform: none; opacity: 1; } } @keyframes jassPuls { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }`}</style>
+      <FeltBackground />
+      <div style={{ padding: "calc(env(safe-area-inset-top, 0px) + 14px) 16px 0", textAlign: "center", fontSize: 20, fontFamily: CHALK_FONT, color: CHALK }}>Wer spielt zusammen?</div>
+      <div style={{ textAlign: "center", fontSize: 14, minHeight: 40, padding: "6px 20px", color: C.gold, fontWeight: 700 }}>
+        {msg || (stage === "team" ? "Jeder zieht eine Karte – die zwei höchsten spielen zusammen" : "")}
+      </div>
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr auto 1fr", gridTemplateRows: "auto 1fr auto", alignItems: "center", justifyItems: "center", padding: "0 8px 8px", minHeight: 0 }}>
+        <div style={{ gridColumn: "2", gridRow: "1" }}><Slot p={at(2)} /></div>
+        <div style={{ gridColumn: "1", gridRow: "2" }}><Slot p={at(3)} /></div>
+        <div style={{ gridColumn: "3", gridRow: "2" }}><Slot p={at(1)} /></div>
+        {/* Stapel in der Mitte: zum Ziehen antippen */}
+        <div onClick={() => myTurn && drawFor(0)} style={{ gridColumn: "2", gridRow: "2", textAlign: "center", cursor: myTurn ? "pointer" : "default" }}>
+          <div style={{ position: "relative", width: w + 14, height: Math.round(w * 1.5) + 14, margin: "0 auto", animation: myTurn ? "jassPuls 1.1s ease-in-out infinite" : "none" }}>
+            {[3, 2, 1, 0].map((i) => <div key={i} style={{ position: "absolute", left: i * 3, top: i * 3 }}><CardBack w={w} /></div>)}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 13, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{myTurn ? "Tippe auf den Stapel und ziehe deine Karte" : (pending.length ? "…" : "")}</div>
+        </div>
+        <div style={{ gridColumn: "2", gridRow: "3" }}><Slot p={at(0)} /></div>
+      </div>
+      <div style={{ padding: "0 20px calc(env(safe-area-inset-bottom, 0px) + 16px)", display: "flex", justifyContent: "center", minHeight: 56 }}>
+        {stage === "teamfertig" && <button onClick={toDealer} style={{ ...btn(true), minWidth: 240 }}>Weiter: Wer gibt?</button>}
+        {stage === "fertig" && <button onClick={finish} style={{ ...btn(true), minWidth: 240 }}>Spiel starten</button>}
+      </div>
+    </div>
+  );
+}
+
 function useHeight() {
   const [h, setH] = useState(window.innerHeight);
   useEffect(() => { const f = () => setH(window.innerHeight); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -1474,7 +1611,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
       {hintText && hint[key] && <div style={{ fontSize: 12, color: C.dim, marginTop: 5, lineHeight: 1.4 }}>{hintText}</div>}
     </div>
   );
-  const names = settings.shuffleSeats ? [[0, "Du (unten)"], [1, "Mitspieler 1"], [2, "Mitspieler 2"], [3, "Mitspieler 3"]] : [[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]];
+  const names = (settings.shuffleSeats || settings.teamDraw) ? [[0, "Du (unten)"], [1, "Mitspieler 1"], [2, "Mitspieler 2"], [3, "Mitspieler 3"]] : [[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]];
   const ownImgs = !!settings.showImgs;
   const nowGilt = inGame ? " Gilt ab dem nächsten Spiel." : "";
   return (
@@ -1493,6 +1630,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
         ), "Reihenfolge: " + names.map((n) => n[1]).join(", ") + ". Leeres Feld = Standardname.", true)}
         {row("mit", "Mitspieler", <Choice value={!!settings.shuffleSeats} onChange={(v) => set("shuffleSeats", v)} options={[[false, "Fest"], [true, "Zufällig"]]} />,
           "Fest: Partner, links und rechts bleiben wie in den Namen oben. Zufällig: bei jedem neuen Spiel werden die drei Mitspieler neu auf die Plätze gesetzt – du hast nicht immer denselben Partner. Leere Namen behalten den Standardnamen des Platzes.")}
+        {row("zieh", "Wer spielt zusammen", <Choice value={!!settings.teamDraw} onChange={(v) => set("teamDraw", v)} options={[[false, "Fest"], [true, "Ziehen"]]} />,
+          "Ziehen: Zu Beginn jedes neuen Spiels ziehen alle eine Karte aus dem Stapel (du tippst selbst auf den Stapel); die zwei höchsten spielen zusammen. Danach ziehst du gegen den Spieler links von dir: die tiefere Karte gibt im ersten Spiel, das Ass muss geben. Bei gleichen Karten wird nochmals gezogen. Die Mitspieler heissen dann «Mitspieler 1–3» (Namen oben).")}
         {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "CH"], ["fr", "F"]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
         {row("ziel", "Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, "Wer zuerst die Zielpunkte erreicht, gewinnt." + nowGilt, "phone")}
         {row("mult", "Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "1× / 2× / 3×"], ["einfach", "Alles 1×"]]} />,
@@ -1553,6 +1692,8 @@ function RulesModal({ onClose, deck }) {
       {p("In den Settings lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
       {p("Unter Settings → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben aus Copyright-Gründen nur auf diesem Gerät gespeichert.")}
+      {h("Wer spielt zusammen (Ziehen)")}
+      {p("Mit der Einstellung «Wer spielt zusammen: Ziehen» ziehen zu Beginn jedes neuen Spiels alle vier Spieler eine Karte aus dem noch unverteilten Stapel; du tippst selbst auf den Stapel, die anderen ziehen von allein. Die beiden höchsten Karten spielen zusammen (haben die mittleren beiden den gleichen Wert, ziehen diese nochmals). Dann ziehst du gegen den Spieler links von dir: Wer die tiefere Karte hat, gibt im ersten Spiel; das Ass gilt dabei als tiefste Karte und muss geben. Die Partner sitzen sich gegenüber, rechts vom Geber beginnt das Ansagen.")}
       {h("Mitspieler neu zuordnen")}
       {p("Mit der Einstellung «Mitspieler» werden bei jedem neuen Spiel die drei anderen Spieler zufällig auf die Plätze Partner, links und rechts verteilt. Wer dein Partner ist, ändert sich also von Spiel zu Spiel; innerhalb eines Spiels bleibt es gleich.")}
       {h("Weisen nachfragen")}
@@ -2200,10 +2341,14 @@ function JassApp() {
     return () => clearTimeout(timer);
   }, [game, home, manual, replay, deal]);
 
-  const startNew = () => {
+  const [draw, setDraw] = useState(false); // «Wer spielt zusammen»: Ziehen läuft
+  const startNew = (pre0) => {
+    const pre = pre0 && pre0.seatPerm ? pre0 : null; // (als onClick-Handler kommt ein Ereignis an)
     setSelected(null); setModal(null); setEndHidden(false); setHome(false);
-    const ng = newGame(settings); setGame(ng); beginDeal(ng);
-    if (settings.shuffleSeats) {
+    if (settings.teamDraw && !pre) { setDraw(true); return; }   // erst Karten ziehen
+    setDraw(false);
+    const ng = newGame(settings, pre); setGame(ng); beginDeal(ng);
+    if (settings.shuffleSeats || pre) {
       // neue Mitspieler ansagen
       const nm = (i) => ((settings.names && settings.names[ng.seatPerm[i]]) || "").trim() || DEFAULT_NAMES[i];
       say("Neue Runde am Tisch – Partner: " + nm(2) + " · links: " + nm(3) + " · rechts: " + nm(1), 4500);
@@ -2224,6 +2369,9 @@ function JassApp() {
     }
     startNew();
   };
+
+  // ── Wer spielt zusammen? ──
+  if (draw) return wrap(<DrawScreen key="draw" settings={settings} deck={deck} onDone={(pre) => startNew(pre)} />);
 
   // ── Startbildschirm ──
   if (!game || home) {
