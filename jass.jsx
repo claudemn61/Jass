@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.0.1";
+const APP_VERSION = "2.1.0";
 
 const CHANGELOG = [
+  {
+    version: "2.1.0",
+    changes: [
+      "Neue Einstellung «Mitspieler»: bei jedem neuen Spiel werden die drei anderen Spieler (Partner, links, rechts) zufällig neu zugeordnet",
+    ],
+  },
   {
     version: "2.0.1",
     changes: [
@@ -187,7 +193,11 @@ function startRound(g) {
   };
 }
 function newGame(settings) {
-  return startRound({ id: Date.now(), scores: [0, 0], history: [], nextChooser: Math.floor(Math.random() * 4), target: settings.target, mult: settings.mult, over: null, round: null });
+  // seatPerm[sitz] = Nummer in der Namensliste der Einstellungen (0 = du); mit «Mitspieler zufällig»
+  // werden die drei anderen bei jedem neuen Spiel gemischt
+  const others = [1, 2, 3];
+  if (settings.shuffleSeats) for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
+  return startRound({ id: Date.now(), scores: [0, 0], history: [], nextChooser: Math.floor(Math.random() * 4), target: settings.target, mult: settings.mult, over: null, round: null, seatPerm: [0].concat(others) });
 }
 function doPush(g) {
   const r = g.round;
@@ -1431,7 +1441,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
     <Modal title="Einstellungen" onClose={onClose} page>
       {row("Namen der Spieler", (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {[[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]].map(([i, lab]) => (
+          {(settings.shuffleSeats ? [[0, "Du (unten)"], [1, "Mitspieler 1"], [2, "Mitspieler 2"], [3, "Mitspieler 3"]] : [[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]]).map(([i, lab]) => (
             <label key={i} style={{ fontSize: 12, color: C.dim }}>
               {lab}
               <input value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14}
@@ -1441,6 +1451,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           ))}
         </div>
       ), "Leeres Feld = Standardname.")}
+      {row("Mitspieler", <Choice value={!!settings.shuffleSeats} onChange={(v) => set("shuffleSeats", v)} options={[[false, "Fest"], [true, "Zufällig neu zuordnen"]]} />,
+        settings.shuffleSeats ? "Bei jedem neuen Spiel werden die drei Mitspieler (Partner, links, rechts) zufällig neu auf die Plätze gesetzt – so hast du nicht immer denselben Partner. Leere Namen behalten den Standardnamen des Platzes." : "Partner, links und rechts bleiben wie in den Namen oben.")}
       {row("Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Deutschschweizer"], ["fr", "Französisch"]]} />)}
       {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
       {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
@@ -1495,6 +1507,8 @@ function RulesModal({ onClose, deck }) {
       {p("In den Einstellungen lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
       {p("Unter Einstellungen → «Eigene Kartenbilder» lassen sich Fotos/Scans deiner eigenen Karten, die Rückseite und die Farbsymbole (vier Farben sowie Pfeile für Obenabe und Undenufe) laden. Sie ersetzen die gezeichneten Bilder überall in der App und bleiben nur auf diesem Gerät gespeichert.")}
+      {h("Mitspieler neu zuordnen")}
+      {p("Mit der Einstellung «Mitspieler» werden bei jedem neuen Spiel die drei anderen Spieler zufällig auf die Plätze Partner, links und rechts verteilt. Wer dein Partner ist, ändert sich also von Spiel zu Spiel; innerhalb eines Spiels bleibt es gleich.")}
       {h("Weisen nachfragen")}
       {p("Stellst du «Weis» auf «Nachfragen», fragt die App vor deiner ersten Karte, ob du wirklich weisen willst. Partner und Gegner entscheiden im Hintergrund: Weise ab 50 Punkten werden immer angesagt, ein Dreiblatt nur, wenn es keine hohen Trümpfe verrät oder ein Team nahe am Ziel ist. Ein nicht angesagter Weis zählt nicht und wird nicht gezeigt.")}
       {h("Alle Böcke auflegen")}
@@ -2015,7 +2029,9 @@ function JassApp() {
   const deck = settings.deck;
   THANK = settings.thank || "knopf";
   WEISASK = !!settings.weisAsk;
-  NAMES = [0, 1, 2, 3].map((i) => ((settings.names && settings.names[i]) || "").trim() || DEFAULT_NAMES[i]);
+  // Sitz → Name: über seatPerm (Zuordnung dieses Spiels) aus der Namensliste; leerer Name = Standardname des Sitzes
+  const seatPerm = (game && game.seatPerm) || [0, 1, 2, 3];
+  NAMES = [0, 1, 2, 3].map((i) => ((settings.names && settings.names[seatPerm[i]]) || "").trim() || DEFAULT_NAMES[i]);
   const sp = SPEEDS[settings.speed] || SPEEDS.normal;
 
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
@@ -2136,7 +2152,15 @@ function JassApp() {
     return () => clearTimeout(timer);
   }, [game, home, manual, replay, deal]);
 
-  const startNew = () => { setSelected(null); setModal(null); setEndHidden(false); setHome(false); const ng = newGame(settings); setGame(ng); beginDeal(ng); };
+  const startNew = () => {
+    setSelected(null); setModal(null); setEndHidden(false); setHome(false);
+    const ng = newGame(settings); setGame(ng); beginDeal(ng);
+    if (settings.shuffleSeats) {
+      // neue Mitspieler ansagen
+      const nm = (i) => ((settings.names && settings.names[ng.seatPerm[i]]) || "").trim() || DEFAULT_NAMES[i];
+      say("Neue Runde am Tisch – Partner: " + nm(2) + " · links: " + nm(3) + " · rechts: " + nm(1), 4500);
+    }
+  };
   const goNextRound = () => { setEndHidden(false); if (game.over) startNew(); else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
   const askNew = () => {
     if (game && !game.over && (game.history.length || (game.round && game.round.trickNo > 0))) {
