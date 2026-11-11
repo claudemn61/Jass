@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.1";
 
 const CHANGELOG = [
+  {
+    version: "2.0.1",
+    changes: [
+      "Kartensortierung konstant: innerhalb der Farbe immer Ass → 6 (auch bei Undenufe nicht umgekehrt); der Trumpf steht bei «Links → rechts» immer links, bei «Rechts → links» immer rechts",
+    ],
+  },
   {
     version: "2.0.0",
     changes: [
@@ -1455,7 +1461,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
       {row("Weis", <Choice value={!!settings.weisAsk} onChange={(v) => set("weisAsk", v)} options={[[false, "Automatisch"], [true, "Nachfragen"]]} />,
         settings.weisAsk ? "Hast du einen Weis, fragt die App vor deiner ersten Karte nach, ob du weisen willst. Partner und Gegner entscheiden im Hintergrund nach der Spielsituation (nicht jeder Weis wird gezeigt)." : "Alle Weise werden automatisch angesagt.")}
       {row("Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Links → rechts"], ["rl", "Rechts → links"]]} />,
-        "Reihenfolge deiner Hand: Eicheln, Rosen, Schilten, Schellen (Trumpf zuerst), je von hoch nach tief – von links nach rechts oder umgekehrt.")}
+        "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). «Links → rechts»: Trumpf ganz links; «Rechts → links»: Reihenfolge gespiegelt, Trumpf ganz rechts.")}
       {row("Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Per Knopf"], ["auto", "Automatisch"], ["aus", "Nicht möglich"]]} />,
         (settings.thank || "knopf") === "knopf" ? "Du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren); die Gegner bedanken sich automatisch."
           : settings.thank === "auto" ? "Sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort – für beide Teams, ohne Knopf."

@@ -153,7 +153,8 @@
   function sortHand(hand, t) {
     const suitOrder = [3, 1, 2, 0];
     const so = (s) => (t != null && t < 4 && s === t ? -1 : suitOrder.indexOf(s));
-    const str = (c) => (t != null && isTrump(c, t) ? 20 + TRUMP_STR[rankOf(c)] : (t === UNDE ? 8 - rankOf(c) : rankOf(c)));
+    // Innerhalb der Farbe immer Ass → 6, auch bei Undenufe nicht umgekehrt; Trumpf nach Trumpfstärke
+    const str = (c) => (t != null && isTrump(c, t) ? 20 + TRUMP_STR[rankOf(c)] : rankOf(c));
     return hand.slice().sort((a, b) => so(suitOf(a)) - so(suitOf(b)) || str(b) - str(a));
   }
 
