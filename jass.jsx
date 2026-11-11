@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.1.2";
+const APP_VERSION = "2.1.3";
 
 const CHANGELOG = [
+  {
+    version: "2.1.3",
+    changes: [
+      "Weis am Tisch: gültige Weise (Team mit dem höchsten Weis) wie bisher mit Farbe und Karte, die unterlegenen Ansagen der anderen nur als ausgegraute Zahl (z.B. 100, 20)",
+    ],
+  },
   {
     version: "2.1.2",
     changes: [
@@ -1530,7 +1536,7 @@ function RulesModal({ onClose, deck }) {
       {h("Kartenwerte")}
       {p("Trumpf: Under 20, Nell (9) 14, Ass 11, 10 10, König 4, Ober 3. Übrige Farben: Ass 11, 10 10, König 4, Ober 3, Under 2. Obenabe/Undenufe: zusätzlich Achter 8; bei Undenufe zählt der Sechser 11 statt des Asses. Letzter Stich +5. Total 157 pro Runde, alle Stiche (Match) 257.")}
       {h("Weis und Stöck")}
-      {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt: Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Gleiche 100 (alle Kartenwerte von 6 bis Ass, auch bei Obenabe und Undenufe), vier Nell 150, vier Under 200; ein Sechsblatt 150, Siebenblatt 200, Achtblatt 250, Neunblatt 300. Kreuzweise (eine Karte in zwei Weisen) sind gültig. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. Bei gleichhohen Weisen gilt der Reihe nach: Eine Reihenfolge geht vor vier Gleichen; die höhere Karte des Weis (bei Undenufe die tiefste); bei gleicher höchster Karte die in der Trumpffarbe; sonst, wer zuerst an der Reihe ist (Vorhand). Ein geschriebener Weis bleibt auch bei einem Match der Gegner bestehen. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
+      {p("Weis werden automatisch erkannt und nach dem ersten Stich gezeigt (die gültigen des Siegerteams mit Farbe und Karte, die unterlegenen Ansagen der anderen nur als ausgegraute Zahl): Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Gleiche 100 (alle Kartenwerte von 6 bis Ass, auch bei Obenabe und Undenufe), vier Nell 150, vier Under 200; ein Sechsblatt 150, Siebenblatt 200, Achtblatt 250, Neunblatt 300. Kreuzweise (eine Karte in zwei Weisen) sind gültig. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. Bei gleichhohen Weisen gilt der Reihe nach: Eine Reihenfolge geht vor vier Gleichen; die höhere Karte des Weis (bei Undenufe die tiefste); bei gleicher höchster Karte die in der Trumpffarbe; sonst, wer zuerst an der Reihe ist (Vorhand). Ein geschriebener Weis bleibt auch bei einem Match der Gegner bestehen. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, kann sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Einstellungen lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
       {h("Offene Karten (Lernmodus)")}
@@ -2339,13 +2345,18 @@ function JassApp() {
 
   // Weis der Runde beim Spieler: nach dem ersten Stich zeigt das Team mit dem
   // höchsten Weis seine Weise (wie am echten Tisch)
-  const weisOf = (p) => (r.trickNo >= 1 && r.weis && r.weis.winnerTeam === E.team(p) ? r.weis.byPlayer[p] : []);
+  // Weise eines Spielers nach dem ersten Stich: gültige (Siegerteam) vollständig, unterlegene nur als Zahl
+  const weisOf = (p) => (r.trickNo >= 1 && r.weis && r.weis.winnerTeam != null ? r.weis.byPlayer[p] : []);
+  const weisValid = (p) => !!r.weis && r.weis.winnerTeam === E.team(p);
   const WeisChips = ({ p, align }) => {
     const ws = weisOf(p);
     if (!ws.length) return null;
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: align || "center", gap: 3, marginTop: 4 }}>
-        {ws.map((w, i) => (
+        {ws.map((w, i) => !weisValid(p) ? (
+          // unterlegene Ansage: nur die Zahl, ohne Farbe und Karte
+          <div key={i} style={{ fontSize: 11 * uiK, padding: "1px 7px", borderRadius: 8, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.18)", color: "#aeb6b3", opacity: 0.75, filter: "grayscale(1)", whiteSpace: "nowrap", lineHeight: 1.4 }}>{w.pts}</div>
+        ) : (
           <div key={i} title={describeWeis(w, deck)} style={{ fontSize: 11 * uiK, padding: "1px 6px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: "1px solid rgba(244,196,48,0.6)", color: C.text, whiteSpace: "nowrap", lineHeight: 1.4 }}>
             {/* Kurzform: Punkte, Farbe, Bezugskarte – bei Undenufe die tiefste
                 (20 Schellen 10 = 10, U, O), sonst die höchste (20 Schellen 9 = 7, 8, 9) */}
