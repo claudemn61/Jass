@@ -2464,8 +2464,8 @@ function JassApp() {
           Runde {r.no}{r.trump != null ? " · Stiche " + r.tricks[0] + ":" + r.tricks[1] : ""}
           {r.trump != null && <div>Trumpf: {NAMES[r.decider]} {r.pushed ? "☆" : "★"}</div>}
         </div>
-        {/* Knöpfe unten rechts nebeneinander (kollidieren so nicht mit den Plätzen) */}
-        <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", gap: 6, zoom: uiK }}>
+        {/* Knöpfe unten rechts übereinander: «Bedanken» über «Letzter Stich» (kollidiert so nicht mit dem Weis in der Mitte) */}
+        <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, zoom: uiK }}>
           {THANK === "knopf" && (r.phase === "play" || r.phase === "trickDone") && !game.over && (
             <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
               style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
