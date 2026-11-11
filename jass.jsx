@@ -2414,23 +2414,25 @@ function JassApp() {
                 </div>
               ))}
             </div>
-          ) : (<>
-          <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, cursor: "pointer", alignItems: "baseline", whiteSpace: "nowrap", overflow: "hidden" }}>
-            {/* ab 1500 Punkten zusätzlich: wie viel fehlt bis zum Ziel */}
-            {[0, 1].map((t) => (
-              <div key={t}>
-                <span style={{ fontSize: 11, color: C.dim }}>{t === 0 ? "Wir " : "Gegner "}</span>
+          ) : (
+          // iPhone: «Wir» links, Trumpf in der Mitte, «Gegner» rechts
+          <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }}>
+            {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
+              <div key="t" title={r.trump != null ? modeName(r.trump, deck) : ""} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20, visibility: r.trump != null ? "visible" : "hidden", minWidth: 32, minHeight: 32, boxSizing: "border-box", justifyContent: "center" }}>
+                {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={22} />}
+              </div>
+            ) : (
+              <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 4, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
+                <span style={{ fontSize: 11, color: C.dim }}>{t === 0 ? "Wir" : "Gegner"}</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: t === 0 ? C.gold : C.text }}>{game.scores[t]}</span>
-                {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim, marginLeft: 2 }}>−{game.target - game.scores[t]}</span>}
+                {/* ab 1500 Punkten zusätzlich: wie viel fehlt bis zum Ziel */}
+                {game.scores[t] > 1500 && game.scores[t] < game.target && <span style={{ fontSize: 11, color: C.dim }}>−{game.target - game.scores[t]}</span>}
               </div>
             ))}
           </div>
-          {r.trump != null && (
-            <div title={modeName(r.trump, deck)} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20 }}>
-              <ModeIcon t={r.trump} deck={deck} size={22} />
-            </div>
           )}
-          </>)}
+          {/* gleich breiter, unsichtbarer Platzhalter rechts: hält den Trumpf in der Bildschirmmitte */}
+          {!big && <div aria-hidden="true" style={{ fontSize: 22, padding: "0 6px", visibility: "hidden" }}>☰</div>}
         </div>
       </div>
 
