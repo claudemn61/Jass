@@ -1521,7 +1521,7 @@ function Choice({ value, options, onChange }) {
     <div style={{ display: "flex", gap: L ? (options.length >= 4 ? 5 : 8) : 4, flexWrap: "nowrap" }}>
       {options.map(([v, l]) => (
         <button key={String(v)} onClick={() => onChange(v)}
-          style={{ ...btn(value === v), flex: "1 1 0", minWidth: 0, padding: L ? "12px 4px" : "5px 3px", fontSize: L ? (options.length >= 4 ? 14 : 16) : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
+          style={{ ...btn(value === v), ...(value === v ? {} : { color: C.dim, fontWeight: 400 }), flex: "1 1 0", minWidth: 0, padding: L ? "12px 4px" : "5px 3px", fontSize: L ? (options.length >= 4 ? 14 : 16) : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
       ))}
     </div>
   );
@@ -1612,7 +1612,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   // eine Einstellung: kleine Beschriftung, Knöpfe auf einer Zeile, Hinweis hinter «ⓘ»
   const row = (key, label, el, hintText, span) => (
     <div key={key} style={{ gridColumn: span === true || (span === "phone" && !big) ? "1 / -1" : undefined, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: big ? 15 : 11, color: C.dim, marginBottom: big ? 8 : 3 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: big ? 15 : 11, color: C.text, fontWeight: 700, marginBottom: big ? 8 : 3 }}>
         <span>{label}</span>
         {hintText && <span onClick={() => setHint({ ...hint, [key]: !hint[key] })} style={{ cursor: "pointer", color: hint[key] ? C.gold : C.dim, fontSize: 14, lineHeight: 1, padding: "0 4px" }}>ⓘ</span>}
       </div>
