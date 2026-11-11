@@ -1464,7 +1464,7 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
         ), "Reihenfolge: " + names.map((n) => n[1]).join(", ") + ". Leeres Feld = Standardname.", true)}
         {row("mit", "Mitspieler", <Choice value={!!settings.shuffleSeats} onChange={(v) => set("shuffleSeats", v)} options={[[false, "Fest"], [true, "Zufällig"]]} />,
           "Fest: Partner, links und rechts bleiben wie in den Namen oben. Zufällig: bei jedem neuen Spiel werden die drei Mitspieler neu auf die Plätze gesetzt – du hast nicht immer denselben Partner. Leere Namen behalten den Standardnamen des Platzes.")}
-        {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Schweizer"], ["fr", "Französ."]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
+        {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "CH"], ["fr", "F"]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
         {row("ziel", "Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, "Wer zuerst die Zielpunkte erreicht, gewinnt." + nowGilt, "phone")}
         {row("mult", "Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "1× / 2× / 3×"], ["einfach", "Alles 1×"]]} />,
           (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + nowGilt)}
@@ -1472,10 +1472,10 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Normal: einfache Faustregeln. Stark: rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
         {row("tempo", "Tempo", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"], ["manuell", "Manuell"]]} />,
           "Tempo der Mitspieler. Manuell: jeder Zug der Mitspieler und das Einsammeln des Stichs erst nach Tippen auf den Teppich.", "phone")}
-        {row("offen", "Offene Karten", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Verdeckt"], [true, "Offen"]]} />,
-          "Offen (Lernmodus): die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen.")}
-        {row("dim", "Nicht spielbare", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal"]]} />,
-          "Nicht spielbare Karten ausgrauen oder normal zeigen (eine nicht erlaubte Karte lässt sich trotzdem nicht spielen).")}
+        {row("offen", "Offene Karten", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Normal"], [true, "Offen"]]} />,
+          "Normal: verdeckt. Offen (Lernmodus): die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen.")}
+        {row("dim", "Nicht spielbare", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Grau"], [false, "Normal"]]} />,
+          "Grau: nicht spielbare Karten ausgrauen; Normal: wie alle anderen zeigen (eine nicht erlaubte Karte lässt sich trotzdem nicht spielen).")}
         {row("deal", "Austeilen", <Choice value={settings.dealMode || "geber"} onChange={(v) => set("dealMode", v)} options={[["geber", "Geber"], ["mitte", "Mitte"], ["aus", "Aus"]]} />,
           "Geber: die Karten fliegen vom Spieler, der in der Runde davor mit Trumpf/Schieben dran war; Mitte: von einem Stapel in der Tischmitte; Aus: sofort verteilt (ohne 5 Sekunden Animation).", "phone")}
         {row("weis", "Weis", <Choice value={!!settings.weisAsk} onChange={(v) => set("weisAsk", v)} options={[[false, "Auto"], [true, "Fragen"]]} />,
@@ -1484,8 +1484,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
         {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Knopf"], ["auto", "Auto"], ["aus", "Aus"]]} />,
           "Knopf: du bedankst dich selbst (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
-        {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Zugleich"], [false, "Einzeln"]]} />,
-          "Zugleich: hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin und der Haufen geht an sein Team. Einzeln: auch dann wird jede Karte einzeln gespielt.")}
+        {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Mehrere"], [false, "Einzeln"]]} />,
+          "Mehrere: hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin und der Haufen geht an sein Team. Einzeln: auch dann wird jede Karte einzeln gespielt.")}
         {row("play", "Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "2× tippen"], ["tap", "1× tippen"], ["swipe", "Wischen"]]} />,
           "2× tippen: antippen und bestätigen. 1× tippen: sofort spielen. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.", "phone")}
         {row("backup", "Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes Gerät übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben.")}
