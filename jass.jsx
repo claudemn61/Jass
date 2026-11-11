@@ -1318,15 +1318,15 @@ const btn = (primary) => ({
   fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 });
 
-function Modal({ title, onClose, children, wide, page }) {
+function Modal({ title, onClose, children, wide, page, maxW, tight }) {
   if (page) {
     // Ganze Seite auf der alten Schiefertafel (wie der Startbildschirm)
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 50, overflowY: "auto", background: "#1b2120", color: C.text }}>
         <StartSlate />
-        <div style={{ position: "relative", zIndex: 1, maxWidth: window.innerWidth >= 700 ? 760 : 560, margin: "0 auto", padding: "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ flex: 1, fontSize: 28, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.2)" }}>{title}</div>
+        <div style={{ position: "relative", zIndex: 1, maxWidth: maxW || (window.innerWidth >= 700 ? 760 : 560), margin: "0 auto", padding: tight ? "calc(env(safe-area-inset-top, 0px) + 22px) 24px calc(env(safe-area-inset-bottom, 0px) + 20px)" : "calc(env(safe-area-inset-top, 0px) + 34px) 30px calc(env(safe-area-inset-bottom, 0px) + 40px)", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: tight ? 8 : 16 }}>
+            <div style={{ flex: 1, fontSize: tight ? 24 : 28, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.2)" }}>{title}</div>
             {onClose && <button onClick={onClose} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid " + C.line, borderRadius: 20, color: C.text, fontSize: 18, width: 36, height: 36, cursor: "pointer" }}>✕</button>}
           </div>
           {children}
@@ -1347,11 +1347,13 @@ function Modal({ title, onClose, children, wide, page }) {
   );
 }
 
+// Auswahl-Knöpfe: immer auf einer Zeile (gleich breit, Text wird nötigenfalls gekürzt)
 function Choice({ value, options, onChange }) {
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
       {options.map(([v, l]) => (
-        <button key={String(v)} onClick={() => onChange(v)} style={{ ...btn(value === v), padding: "8px 12px", fontSize: 14 }}>{l}</button>
+        <button key={String(v)} onClick={() => onChange(v)}
+          style={{ ...btn(value === v), flex: "1 1 0", minWidth: 0, padding: "8px 3px", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
       ))}
     </div>
   );
@@ -1418,9 +1420,9 @@ function BackupRow() {
   };
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={doExport} style={btn(false)}>Backup exportieren…</button>
-        <button onClick={() => inRef.current.click()} style={btn(false)}>Backup laden…</button>
+      <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
+        <button onClick={doExport} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "8px 3px", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap" }}>Sichern…</button>
+        <button onClick={() => inRef.current.click()} style={{ ...btn(false), flex: 1, minWidth: 0, padding: "8px 3px", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap" }}>Laden…</button>
       </div>
       <input ref={inRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
       {msg && <div style={{ fontSize: 13, color: C.gold, marginTop: 8 }}>{msg}</div>}
@@ -1430,58 +1432,72 @@ function BackupRow() {
 
 function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
-  const row = (label, el, hint) => (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, color: C.dim, marginBottom: 6 }}>{label}</div>
+  const [hint, setHint] = useState({}); // aufgeklappte Hinweise (ⓘ)
+  const vw = window.innerWidth;
+  const big = vw >= 700;
+  const cols = vw >= 1000 ? 3 : 2; // iPad: alles auf einem Bildschirm; iPhone: 2 Spalten, Zeilen mit ≥ 3 Optionen über die ganze Breite
+  // eine Einstellung: kleine Beschriftung, Knöpfe auf einer Zeile, Hinweis hinter «ⓘ»
+  const row = (key, label, el, hintText, span) => (
+    <div key={key} style={{ gridColumn: span === true || (span === "phone" && !big) ? "1 / -1" : undefined, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.dim, marginBottom: 3 }}>
+        <span>{label}</span>
+        {hintText && <span onClick={() => setHint({ ...hint, [key]: !hint[key] })} style={{ cursor: "pointer", color: hint[key] ? C.gold : C.dim, fontSize: 14, lineHeight: 1, padding: "0 4px" }}>ⓘ</span>}
+      </div>
       {el}
-      {hint && <div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>{hint}</div>}
+      {hintText && hint[key] && <div style={{ fontSize: 12, color: C.dim, marginTop: 5, lineHeight: 1.4 }}>{hintText}</div>}
     </div>
   );
+  const names = settings.shuffleSeats ? [[0, "Du (unten)"], [1, "Mitspieler 1"], [2, "Mitspieler 2"], [3, "Mitspieler 3"]] : [[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]];
+  const ownImgs = !!settings.showImgs;
+  const nowGilt = inGame ? " Gilt ab dem nächsten Spiel." : "";
   return (
-    <Modal title="Einstellungen" onClose={onClose} page>
-      {row("Namen der Spieler", (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {(settings.shuffleSeats ? [[0, "Du (unten)"], [1, "Mitspieler 1"], [2, "Mitspieler 2"], [3, "Mitspieler 3"]] : [[0, "Du (unten)"], [2, "Partner (oben)"], [3, "Links"], [1, "Rechts"]]).map(([i, lab]) => (
-            <label key={i} style={{ fontSize: 12, color: C.dim }}>
-              {lab}
-              <input value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14}
+    <Modal title="Einstellungen" onClose={onClose} page tight maxW={big ? Math.min(vw - 190, 1100) : undefined}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", minmax(0, 1fr))", gap: (big ? 12 : 8) + "px " + (big ? 22 : 12) + "px" }}>
+        {row("namen", "Namen der Spieler", (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 5 }}>
+            {names.map(([i, lab]) => (
+              <input key={i} value={(settings.names || DEFAULT_NAMES)[i]} maxLength={14} placeholder={lab} title={lab}
                 onChange={(e) => { const n = (settings.names || DEFAULT_NAMES).slice(); n[i] = e.target.value; set("names", n); }}
-                style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 3, padding: "8px 10px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 15, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
-            </label>
-          ))}
-        </div>
-      ), "Leeres Feld = Standardname.")}
-      {row("Mitspieler", <Choice value={!!settings.shuffleSeats} onChange={(v) => set("shuffleSeats", v)} options={[[false, "Fest"], [true, "Zufällig neu zuordnen"]]} />,
-        settings.shuffleSeats ? "Bei jedem neuen Spiel werden die drei Mitspieler (Partner, links, rechts) zufällig neu auf die Plätze gesetzt – so hast du nicht immer denselben Partner. Leere Namen behalten den Standardnamen des Platzes." : "Partner, links und rechts bleiben wie in den Namen oben.")}
-      {row("Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Deutschschweizer"], ["fr", "Französisch"]]} />)}
-      {row("Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, inGame ? "Gilt ab dem nächsten Spiel." : null)}
-      {row("Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Alles einfach"]]} />,
-        (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + (inGame ? " Gilt ab dem nächsten Spiel." : ""))}
-      {row("Spielstärke der Computer-Spieler", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
-        settings.level === "normal" ? "Einfache Faustregeln." : "Rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
-      {row("Tempo der Mitspieler", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"], ["manuell", "Manuell"]]} />,
-        settings.speed === "manuell" ? "Jeder Zug der Mitspieler und das Einsammeln des Stichs erst nach Tippen auf den Teppich." : null)}
-      {row("Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes iPhone übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben, nicht veröffentlichen.")}
-      {row("Eigene Kartenbilder", <button onClick={onImages} style={{ ...btn(false), display: "inline-flex", alignItems: "center", gap: 8 }}>🃏 Eigene Kartenbilder…</button>, "Fotos/Scans deiner eigenen Karten und Rückseite – nur auf diesem Gerät gespeichert.")}
-      {row("Offene Karten", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Verdeckt"], [true, "Offen (Lernmodus)"]]} />,
-        settings.openCards ? "Die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen." : null)}
-      {row("Nicht spielbare Karten", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal zeigen"]]} />,
-        settings.dimIllegal === false ? "Alle Karten sehen gleich aus; eine nicht erlaubte Karte lässt sich trotzdem nicht spielen." : null)}
-      {row("Austeilen", <Choice value={settings.dealMode || "geber"} onChange={(v) => set("dealMode", v)} options={[["geber", "Vom Geber"], ["mitte", "Aus der Mitte"], ["aus", "Ohne Animation"]]} />,
-        (settings.dealMode || "geber") === "geber" ? "Die Karten fliegen vom Spieler, der in der Runde davor mit Trumpf/Schieben dran war (dem Geber); ausgeteilt wird reihum ab dem ersten Ansager."
-          : settings.dealMode === "mitte" ? "Die Karten fliegen von einem Stapel in der Tischmitte zu den Spielern." : "Die Karten sind sofort verteilt (5 Sekunden Animation entfallen).")}
-      {row("Weis", <Choice value={!!settings.weisAsk} onChange={(v) => set("weisAsk", v)} options={[[false, "Automatisch"], [true, "Nachfragen"]]} />,
-        settings.weisAsk ? "Hast du einen Weis, fragt die App vor deiner ersten Karte nach, ob du weisen willst. Partner und Gegner entscheiden im Hintergrund nach der Spielsituation (nicht jeder Weis wird gezeigt)." : "Alle Weise werden automatisch angesagt.")}
-      {row("Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Links → rechts"], ["rl", "Rechts → links"]]} />,
-        "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). «Links → rechts»: Trumpf ganz links; «Rechts → links»: Reihenfolge gespiegelt, Trumpf ganz rechts.")}
-      {row("Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Per Knopf"], ["auto", "Automatisch"], ["aus", "Nicht möglich"]]} />,
-        (settings.thank || "knopf") === "knopf" ? "Du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren); die Gegner bedanken sich automatisch."
-          : settings.thank === "auto" ? "Sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort – für beide Teams, ohne Knopf."
-          : "Kein vorzeitiges Ende: das Ziel zählt erst bei der Abrechnung am Rundenende.")}
-      {row("Bock-Karten spielen", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Alle gleichzeitig"], [false, "Einzeln"]]} />,
-        settings.claimAll !== false ? "Hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin; der Haufen geht an sein Team." : "Auch mit lauter Böcken wird jede Karte einzeln gespielt (gilt für alle Spieler).")}
-      {row("Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "Antippen + bestätigen"], ["tap", "Ein Tipp"], ["swipe", "Wischen"]]} />,
-        (settings.playMode === "swipe") ? "Karte mit dem Finger aus der Hand nach oben auf den Tisch ziehen." : null)}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 6px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 13, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" }} />
+            ))}
+          </div>
+        ), "Reihenfolge: " + names.map((n) => n[1]).join(", ") + ". Leeres Feld = Standardname.", true)}
+        {row("mit", "Mitspieler", <Choice value={!!settings.shuffleSeats} onChange={(v) => set("shuffleSeats", v)} options={[[false, "Fest"], [true, "Zufällig"]]} />,
+          "Fest: Partner, links und rechts bleiben wie in den Namen oben. Zufällig: bei jedem neuen Spiel werden die drei Mitspieler neu auf die Plätze gesetzt – du hast nicht immer denselben Partner. Leere Namen behalten den Standardnamen des Platzes.")}
+        {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "Schweizer"], ["fr", "Französ."]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
+        {row("ziel", "Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, "Wer zuerst die Zielpunkte erreicht, gewinnt." + nowGilt, "phone")}
+        {row("mult", "Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "Gestaffelt"], ["einfach", "Einfach"]]} />,
+          (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + nowGilt)}
+        {row("level", "Spielstärke", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
+          "Normal: einfache Faustregeln. Stark: rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
+        {row("tempo", "Tempo", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"], ["manuell", "Manuell"]]} />,
+          "Tempo der Mitspieler. Manuell: jeder Zug der Mitspieler und das Einsammeln des Stichs erst nach Tippen auf den Teppich.", "phone")}
+        {row("offen", "Offene Karten", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Verdeckt"], [true, "Offen"]]} />,
+          "Offen (Lernmodus): die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen.")}
+        {row("dim", "Nicht spielbare", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Ausgrauen"], [false, "Normal"]]} />,
+          "Nicht spielbare Karten ausgrauen oder normal zeigen (eine nicht erlaubte Karte lässt sich trotzdem nicht spielen).")}
+        {row("deal", "Austeilen", <Choice value={settings.dealMode || "geber"} onChange={(v) => set("dealMode", v)} options={[["geber", "Geber"], ["mitte", "Mitte"], ["aus", "Aus"]]} />,
+          "Geber: die Karten fliegen vom Spieler, der in der Runde davor mit Trumpf/Schieben dran war; Mitte: von einem Stapel in der Tischmitte; Aus: sofort verteilt (ohne 5 Sekunden Animation).", "phone")}
+        {row("weis", "Weis", <Choice value={!!settings.weisAsk} onChange={(v) => set("weisAsk", v)} options={[[false, "Auto"], [true, "Fragen"]]} />,
+          "Auto: alle Weise werden automatisch angesagt. Fragen: die App fragt vor deiner ersten Karte, ob du weisen willst; Partner und Gegner entscheiden im Hintergrund nach der Spielsituation.")}
+        {row("sort", "Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Li → Re"], ["rl", "Re → Li"]]} />,
+          "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
+        {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Knopf"], ["auto", "Auto"], ["aus", "Aus"]]} />,
+          "Knopf: du bedankst dich selbst (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
+        {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Zugleich"], [false, "Einzeln"]]} />,
+          "Zugleich: hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin und der Haufen geht an sein Team. Einzeln: auch dann wird jede Karte einzeln gespielt.")}
+        {row("play", "Karte spielen", <Choice value={settings.playMode || (settings.oneTap ? "tap" : "confirm")} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["confirm", "2× tippen"], ["tap", "1× tippen"], ["swipe", "Wischen"]]} />,
+          "2× tippen: antippen und bestätigen. 1× tippen: sofort spielen. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.", "phone")}
+        {row("backup", "Backup", <BackupRow />, "Eine Datei mit Einstellungen, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes Gerät übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben.")}
+        {/* Eigene Kartenbilder: ein-/ausblendbar */}
+        {row("imgs", "Eigene Kartenbilder", ownImgs
+          ? <div style={{ display: "flex", gap: 4 }}>
+              <button onClick={onImages} style={{ ...btn(false), flex: 2, padding: "8px 6px", fontSize: 13, borderRadius: 10 }}>🃏 Bilder verwalten…</button>
+              <button onClick={() => set("showImgs", false)} style={{ ...btn(false), flex: 1, padding: "8px 6px", fontSize: 13, borderRadius: 10 }}>Ausblenden</button>
+            </div>
+          : <button onClick={() => set("showImgs", true)} style={{ ...btn(false), width: "100%", padding: "8px 6px", fontSize: 13, borderRadius: 10 }}>Einblenden ▾</button>,
+          "Fotos/Scans deiner eigenen Karten, Rückseite und Farbsymbole – nur auf diesem Gerät gespeichert.")}
+      </div>
     </Modal>
   );
 }
