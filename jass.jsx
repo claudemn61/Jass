@@ -2101,7 +2101,7 @@ function JassApp() {
       const wt = r.weis.winnerTeam;
       const parts = [0, 1, 2, 3].filter((p) => E.team(p) === wt && r.weis.byPlayer[p].length)
         .map((p) => NAMES[p] + ": " + r.weis.byPlayer[p].map((w) => describeWeis(w, deck)).join(", "));
-      say("Weis " + TEAM[wt] + " +" + r.weis.pts[wt] + " — " + parts.join(" · "), 3500);
+      say((wt === 0 ? "Unser Weis" : "Weis der Gegner") + " +" + r.weis.pts[wt] + " — " + parts.join(" · "), 3500);
     }
     record(g, ng);
     setGame(ng);
