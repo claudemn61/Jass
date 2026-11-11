@@ -1665,6 +1665,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Auto: alle Weise werden automatisch angesagt. Fragen: die App fragt vor deiner ersten Karte, ob du weisen willst; Partner und Gegner entscheiden im Hintergrund nach der Spielsituation.")}
         {row("sort", "Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Li → Re"], ["rl", "Re → Li"]]} />,
           "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
+        {!big && row("rows", "Kartenreihen", <Choice value={settings.handRows === 2 ? 2 : 1} onChange={(v) => set("handRows", v)} options={[[1, "1 Reihe"], [2, "2 Reihen"]]} />,
+          "Nur iPhone: deine Hand in zwei Reihen mit grösseren Karten – besser lesbar.")}
         {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Manuell"], ["auto", "Auto"], ["aus", "Aus"]]} />,
           "Manuell: du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
         {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Mehrere"], [false, "Einzeln"]]} />,
@@ -2511,8 +2513,13 @@ function JassApp() {
   const W = Math.min(vw, MAXW);
   const cw = Math.max(44, Math.min(big ? 150 : 78, Math.floor((W - 16) / 5.4), big ? Math.floor(vh * 0.14) : 999));
   const uiK = big ? Math.min(1.5, cw / 78) : 1;
-  const step = hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
-  const handW = cw + step * Math.max(0, hand.length - 1);
+  // Einstellung «Kartenreihen» (nur iPhone): Hand in zwei überlappenden Reihen mit grösseren Karten
+  const twoRows = !big && settings.handRows === 2;
+  const cwH = twoRows ? Math.max(cw, Math.min(Math.floor((W - 16) / 4.2), Math.floor(vh * 0.17))) : cw;
+  const handRows = twoRows && hand.length > 5 ? [hand.slice(0, Math.ceil(hand.length / 2)), hand.slice(Math.ceil(hand.length / 2))] : [hand];
+  const step = twoRows ? (cwH > 0 ? Math.min(cwH + 4, (W - 16 - cwH) / 4) : 0) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
+  const handW = cwH + step * Math.max(0, (twoRows ? Math.max(...handRows.map((x) => x.length)) : hand.length) - 1);
+  const rowOff = Math.round(cwH * 1.5 * 0.56); // Versatz der zweiten Reihe
   // Trumpfwahl: Breite eines der 7 Knöpfe (Zeile max. 560/760 px, 10 px Rand, 6 px Abstand)
   const chooseIcon = Math.round(((Math.min(vw, big ? 760 : 560) - 20 - 6 * 6) / 7) * 0.82);
   // gelegte Karten (Stich): iPhone 1,08×, iPad hoch 1,05×, iPad quer 0,86× der Handkartenbreite
@@ -2809,14 +2816,14 @@ function JassApp() {
       {/* Status + Hand */}
       <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
-        <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cw * 1.5), margin: "0 auto" }}>
-          {hand.map((c, i) => (
+        <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff, margin: "0 auto" }}>
+          {handRows.flatMap((row, ri) => row.map((c, i) => [c, i, ri, row.length])).map(([c, i, ri, n]) => (
             <div key={c}
               onPointerDown={(e) => dragStart(e, c)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={() => setDrag(null)}
-              style={{ position: "absolute", left: i * step, top: 0, zIndex: drag && drag.c === c ? 60 : i, touchAction: playMode === "swipe" ? "none" : "auto",
+              style={{ position: "absolute", left: twoRows ? (handW - (cwH + step * (n - 1))) / 2 + i * step : i * step, top: ri * rowOff, zIndex: drag && drag.c === c ? 60 : ri * 20 + i, touchAction: playMode === "swipe" ? "none" : "auto",
                 transform: drag && drag.c === c ? "translate(" + drag.dx + "px," + drag.dy + "px) rotate(" + drag.dx / 20 + "deg)" : "none",
                 transition: drag && drag.c === c ? "none" : "transform 0.15s" }}>
-              <Card id={c} deck={deck} w={cw} onClick={() => tapCard(c)} dim={settings.dimIllegal !== false && myTurn && !legal.includes(c)} raised={selected === c} trump={r.trump != null && E.isTrump(c, r.trump)} />
+              <Card id={c} deck={deck} w={cwH} onClick={() => tapCard(c)} dim={settings.dimIllegal !== false && myTurn && !legal.includes(c)} raised={selected === c} trump={r.trump != null && E.isTrump(c, r.trump)} />
             </div>
           ))}
         </div>
