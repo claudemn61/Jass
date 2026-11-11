@@ -4,13 +4,14 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.1.6";
+const APP_VERSION = "2.2.0";
 
 const CHANGELOG = [
   {
-    version: "2.1.6",
+    version: "2.2.0",
     changes: [
-      "Neu: «Jassabend» (mehrere Spiele, Striche zählen weiter). Auf dem Startbildschirm, im Menü und nach Spielende: «Neues Spiel» setzt Punkte UND Striche zurück, «Neuer Jassabend» beginnt ein neues Spiel mit Punkten bei 0, die Striche bleiben. Info & Statistik zählt die Jassabende",
+      "Neu: «Serie» – bei «Neues Spiel» (Startbildschirm und Menü) gibt es den Haken «Serie». Ist er gesetzt, zählen die Striche über mehrere Spiele weiter; ohne Haken starten Punkte und Striche bei 0. Der Haken bleibt gesetzt, bis du ihn änderst",
+      "Nach jedem Spielende bei gesetzter Serie: «Serie fortsetzen» oder «Serie beenden» – beim Beenden erscheint das Gesamtresultat aller Spiele der Serie (Spielergebnisse und Striche)",
     ],
   },
   {
@@ -1718,7 +1719,7 @@ function RulesModal({ onClose, deck }) {
       {h("Zeichen am Tisch")}
       {p("★ beim Namen: hat den Trumpf selbst angesagt. ☆ beim Namen: der Partner hat geschoben, dieser Spieler hat den Trumpf angesagt. Grün umrandet: diesem Spieler gehört der Stich im Moment. Gelb: ist am Zug.")}
       {h("Jasstafel")}
-      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Spiele; bei Spielabbruch werden die Striche dieses Spiels entfernt, einzelne Striche lassen sich löschen): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt.")}
+      {p("Vorderseite: pro Team ein Z. Jede Runde wird ergänzt, nie ausradiert: 100er als Striche oben in Fünferbündeln (500 in einer einzigen Runde als «V»), 50er auf der Diagonale (je zwei über Kreuz = 100), 20er unten in Fünferbündeln. Nur die Einer stehen als Zahl und werden angepasst: ab 11 gibt es einen 20er-Strich mehr und Minus-Einer (z.B. 9 und dazu 8 = 20er-Strich und −3). Rückseite (über alle Spiele; bei Spielabbruch werden die Striche dieses Spiels entfernt, einzelne Striche lassen sich löschen): jeder Match 1 Strich, jedes gewonnene Spiel 2 Striche, und wer zuerst den Berg erreicht (60 % der Zielpunkte, bei 2500 also 1500), bekommt 1 Strich. Bei 1000 Punkten wird ohne Berg gespielt. Serie: Mit dem Haken «Serie» bei «Neues Spiel» zählen die Striche über mehrere Spiele weiter (der Haken bleibt gesetzt, bis du ihn änderst); ohne Haken starten Punkte und Striche bei 0. Nach jedem Spielende fragt die App, ob die Serie fortgesetzt oder beendet wird – beim Beenden siehst du das Gesamtresultat aller Spiele der Serie.")}
       {h("Spiel-Strategie")}
       {p("Die Computer spielen nach üblichen Faustregeln im Zusammenspiel mit dem Partner: Beim ersten Mal, wenn sie nicht Farbe angeben können, verwerfen sie eine schwache Farbe (diese spielt ihnen der Partner dann nicht an). Danach schmieren sie, wenn der Partner den Stich macht, sonst verwerfen sie wieder. Spielt der Partner einen Bock, geben sie wenn möglich die Karte direkt darunter zu. Bei der Trumpfwahl gilt für alle Computer-Spieler: Aus der Vorhand wählen sie Rosen oder Eicheln (nur einfach zählend) nur, wenn 100 Punkte realistisch sind, sonst schieben sie. In der Stufe «Stark» rechnen sie zusätzlich viele mögliche Kartenverteilungen durch, berücksichtigen gezeigte Weis und spielen gegen Spielende auf die Zielpunkte hin.")}
     </Modal>
@@ -2018,7 +2019,6 @@ function InfoModal({ stats, onClose }) {
         <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Statistik</div>
         <div>Spiele: {stats.played} · gewonnen: {stats.won}{stats.played ? " (" + Math.round((100 * stats.won) / stats.played) + "%)" : ""}</div>
         <div>Runden: {stats.rounds} · Matches: {stats.matches}</div>
-        <div>Jassabende: {stats.abende || 0}</div>
       </div>
       <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Änderungen</div>
       {CHANGELOG.map((e) => (
@@ -2112,7 +2112,7 @@ function ClaimReportModal({ rep, deck, onClose }) {
   );
 }
 
-function RoundEndModal({ game, deck, onNext, onNextAbend, onTafel, onClose, onClaim }) {
+function RoundEndModal({ game, deck, serie, onNext, onSerieEnd, onTafel, onClose, onClaim }) {
   const r = game.round, res = r.result;
   const row = (label, a, b, bold) => (
     <tr style={{ borderTop: "1px solid " + C.line, fontWeight: bold ? 800 : 400 }}>
@@ -2156,9 +2156,52 @@ function RoundEndModal({ game, deck, onNext, onNextAbend, onTafel, onClose, onCl
         <div style={{ fontSize: 13, color: C.dim }}>Jasstafel ansehen ›</div>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-        <button onClick={onNext} style={{ ...btn(!over), flex: 1 }}>{over ? "Neues Spiel" : "Nächste Runde"}</button>
-        {over && <button onClick={onNextAbend} style={{ ...btn(true), flex: 1 }}>Neuer Jassabend</button>}
+        <button onClick={onNext} style={{ ...btn(true), flex: 1 }}>{!over ? "Nächste Runde" : serie ? "Serie fortsetzen" : "Neues Spiel"}</button>
+        {over && serie && <button onClick={onSerieEnd} style={{ ...btn(false), flex: 1 }}>Serie beenden</button>}
       </div>
+    </Modal>
+  );
+}
+
+// Haken «Serie»: bleibt gesetzt, bis er geändert wird (Teil der Settings)
+function SerieCheck({ settings, setSettings }) {
+  const on = !!settings.serie;
+  return (
+    <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, cursor: "pointer", fontSize: 16, color: C.text, fontWeight: on ? 700 : 400, width: 240 }}>
+      <input type="checkbox" checked={on} onChange={(e) => setSettings({ ...settings, serie: e.target.checked })} style={{ width: 22, height: 22, accentColor: C.gold, margin: 0 }} />
+      Serie (Striche weiterzählen)
+    </label>
+  );
+}
+
+// Gesamtresultat aller Spiele einer Serie
+function SerieModal({ serie, striche, onDone, onClose }) {
+  const rows = [["Match", "match", 1], ["Sieg", "sieg", 2], ["Berg", "berg", 1]];
+  const total = (t) => rows.reduce((s, [, k, f]) => s + striche[k][t] * f, 0);
+  const won = [0, 1].map((t) => serie.filter((g) => g.w === t).length);
+  const td = { padding: "4px 6px", textAlign: "right" };
+  return (
+    <Modal title={"Serie beendet – " + serie.length + (serie.length === 1 ? " Spiel" : " Spiele")} onClose={onClose}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead><tr style={{ color: C.dim }}><th style={{ ...td, textAlign: "left" }}></th><th style={td}>Wir</th><th style={td}>Gegner</th></tr></thead>
+        <tbody>
+          {serie.map((g, i) => (
+            <tr key={i} style={{ borderTop: "1px solid " + C.line }}>
+              <td style={{ ...td, textAlign: "left", color: C.dim }}>Spiel {i + 1}</td>
+              <td style={{ ...td, fontWeight: g.w === 0 ? 800 : 400 }}>{g.s[0]}</td>
+              <td style={{ ...td, fontWeight: g.w === 1 ? 800 : 400 }}>{g.s[1]}</td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: "2px solid " + C.gold, fontWeight: 800 }}><td style={{ ...td, textAlign: "left" }}>Spiele gewonnen</td><td style={td}>{won[0]}</td><td style={td}>{won[1]}</td></tr>
+          {rows.map(([label, k, f]) => (
+            <tr key={k} style={{ borderTop: "1px solid " + C.line }}>
+              <td style={{ ...td, textAlign: "left", color: C.dim }}>{label}{f === 2 ? " (2 Striche)" : ""}</td><td style={td}>{striche[k][0] * f}</td><td style={td}>{striche[k][1] * f}</td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: "2px solid " + C.gold, fontWeight: 800 }}><td style={{ ...td, textAlign: "left" }}>Striche total</td><td style={td}>{total(0)}</td><td style={td}>{total(1)}</td></tr>
+        </tbody>
+      </table>
+      <button onClick={onDone} style={{ ...btn(true), width: "100%", marginTop: 16 }}>Fertig – Striche löschen</button>
     </Modal>
   );
 }
@@ -2180,7 +2223,7 @@ function JassApp() {
   const [settings, setSettingsRaw] = useState(() => ({ ...DEFAULT_SETTINGS, ...load("settings", {}) }));
   const [game, setGame] = useState(() => load("game", null));
   const [home, setHome] = useState(true);
-  const [stats, setStats] = useState(() => ({ played: 0, won: 0, rounds: 0, matches: 0, abende: 0, ...load("stats", {}) }));
+  const [stats, setStats] = useState(() => ({ played: 0, won: 0, rounds: 0, matches: 0, ...load("stats", {}) }));
   const [modal, setModal] = useState(null);
   const [menu, setMenu] = useState(false);
   const [toast, setToast] = useState(null);
@@ -2254,6 +2297,8 @@ function JassApp() {
   useEffect(() => { save("stats", stats); }, [stats]);
   const [striche, setStriche] = useState(() => ({ match: [0, 0], sieg: [0, 0], berg: [0, 0], ...load("striche", {}) }));
   useEffect(() => { save("striche", striche); }, [striche]);
+  const [serie, setSerie] = useState(() => load("serie", [])); // beendete Spiele der laufenden Serie: [{ s: [Wir, Gegner], w: Sieger }]
+  useEffect(() => { save("serie", serie); }, [serie]);
 
   const say = (msg, ms) => {
     clearTimeout(toastTimer.current);
@@ -2313,6 +2358,7 @@ function JassApp() {
       ...s, rounds: s.rounds + 1, matches: s.matches + (res.match === 0 ? 1 : 0),
       played: s.played + (ng.over ? 1 : 0), won: s.won + (ng.over && ng.over.winner === 0 ? 1 : 0),
     }));
+    if (ng.over) setSerie((sv) => sv.concat([{ s: ng.scores.slice(), w: ng.over.winner }]));
     setStriche((st) => {
       const n = { match: st.match.slice(), sieg: st.sieg.slice(), berg: st.berg.slice() };
       if (res.match != null) n.match[res.match]++;
@@ -2377,7 +2423,7 @@ function JassApp() {
       say("Neue Runde am Tisch – Partner: " + nm(2) + " · links: " + nm(3) + " · rechts: " + nm(1), 4500);
     }
   };
-  const goNextRound = (kind) => { setEndHidden(false); if (game.over) { if (kind === "abend") neuerAbend(); else neuesSpiel(); } else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
+  const goNextRound = () => { setEndHidden(false); if (game.over) neuesSpiel(true); else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
   const stricheLeer = () => ({ match: [0, 0], sieg: [0, 0], berg: [0, 0] });
   const hatStriche = () => ["match", "sieg", "berg"].some((k) => striche[k][0] || striche[k][1]);
   // Laufendes Spiel abbrechen (mit Rückfrage); true = weiter
@@ -2389,19 +2435,16 @@ function JassApp() {
     }
     return null; // kein laufendes Spiel
   };
-  // «Neues Spiel»: Punkte UND Striche zurücksetzen
-  const neuesSpiel = () => {
-    const ab = abbrechen("Punkte und Striche werden gelöscht.");
+  // «Neues Spiel»: mit Haken «Serie» zählen die Striche weiter, sonst starten Punkte und Striche bei 0
+  const neuesSpiel = (ohneFrage) => {
+    const serieAn = !!settings.serie;
+    const ab = abbrechen(serieAn ? "Die Striche dieses Spiels werden entfernt." : "Punkte und Striche werden gelöscht.");
     if (ab === false) return;
-    if (ab === null && hatStriche() && !window.confirm("Neues Spiel: die Striche werden gelöscht. Fortfahren?")) return;
-    setStriche(stricheLeer());
-    startNew();
-  };
-  // «Neuer Jassabend»: Punkte bei 0, Striche bleiben (Striche eines abgebrochenen Spiels werden entfernt)
-  const neuerAbend = () => {
-    const ab = abbrechen("Die Striche dieses Spiels werden entfernt.");
-    if (ab === false) return;
-    if (ab) {
+    if (!serieAn) {
+      if (ab === null && !ohneFrage && hatStriche() && !window.confirm("Ohne Serie werden die Striche gelöscht. Fortfahren?")) return;
+      setStriche(stricheLeer()); setSerie([]);
+    } else if (ab) {
+      // Spielabbruch in der Serie: Striche dieses Spiels entfernen, frühere bleiben
       const pd = game.pend;
       if (pd) setStriche((st) => ({
         ...st,
@@ -2409,9 +2452,10 @@ function JassApp() {
         berg: [0, 1].map((t) => Math.max(0, st.berg[t] - pd.berg[t])),
       }));
     }
-    setStats((s) => ({ ...s, abende: (s.abende || 0) + 1 }));
     startNew();
   };
+  // Serie beenden: Striche und Serienverlauf löschen, zurück zum Startbildschirm
+  const serieBeenden = () => { setStriche(stricheLeer()); setSerie([]); setModal(null); setHome(true); };
 
   // ── Wer spielt zusammen? ──
   if (draw) return wrap(<DrawScreen key="draw" settings={settings} deck={deck} onDone={(pre) => startNew(pre)} />);
@@ -2431,8 +2475,8 @@ function JassApp() {
         <div style={{ fontSize: 40, letterSpacing: 1, fontFamily: CHALK_FONT, color: CHALK, textShadow: "0 0 6px rgba(255,255,255,0.25)" }}>Bea’s Jass</div>
         <div style={{ color: "rgba(240,240,232,0.7)", fontSize: 15, marginTop: -10, fontFamily: CHALK_FONT }}>Schieber gegen den Computer</div>
         {canResume && <button onClick={() => setHome(false)} style={{ ...btn(true), width: 240, marginTop: 10 }}>Weiterspielen ({game.scores[0]} : {game.scores[1]})</button>}
-        <button onClick={neuesSpiel} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
-        <button onClick={neuerAbend} style={{ ...btn(false), width: 240 }}>Neuer Jassabend</button>
+        <button onClick={() => neuesSpiel()} style={{ ...btn(!canResume), width: 240, marginTop: canResume ? 0 : 10 }}>Neues Spiel</button>
+        <SerieCheck settings={settings} setSettings={setSettings} />
         <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Settings</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
@@ -2774,8 +2818,7 @@ function JassApp() {
 
       {menu && (
         <Menu onClose={() => setMenu(false)} items={[
-          ["Neues Spiel", neuesSpiel],
-          ["Neuer Jassabend", neuerAbend],
+          ["Neues Spiel", () => setModal("neu")],
           ["Jasstafel", () => setModal("tafel")],
           r.lastTrick ? ["Letzter Stich", () => setModal("last")] : null,
           ["Settings", () => setModal("settings")],
@@ -2787,14 +2830,22 @@ function JassApp() {
       {deal && <DealAnim key={deal.key} w={Math.round(cw * 0.55)} origin={deal.origin} start={deal.start} />}
       {weisAsk && <WeisAskModal ws={E.findWeis(r.start[0])} deck={deck} onAnswer={answerWeis} />}
       {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
-      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} onNext={() => goNextRound("spiel")} onNextAbend={() => goNextRound("abend")} />}
+      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} serie={!!settings.serie} onNext={goNextRound} onSerieEnd={() => { setEndHidden(false); setModal("serieEnd"); }} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
           <button onClick={() => setEndHidden(false)} style={{ ...btn(false), background: "rgba(10,30,22,0.92)" }}>Abrechnung</button>
-          <button onClick={() => goNextRound("spiel")} style={btn(!game.over)}>{game.over ? "Neues Spiel" : "Nächste Runde"}</button>
-          {game.over && <button onClick={() => goNextRound("abend")} style={btn(true)}>Neuer Jassabend</button>}
+          <button onClick={goNextRound} style={btn(true)}>{!game.over ? "Nächste Runde" : settings.serie ? "Serie fortsetzen" : "Neues Spiel"}</button>
+          {game.over && settings.serie && <button onClick={() => setModal("serieEnd")} style={btn(false)}>Serie beenden</button>}
         </div>
       )}
+      {modal === "neu" && (
+        <Modal title="Neues Spiel" onClose={() => setModal(null)}>
+          <SerieCheck settings={settings} setSettings={setSettings} />
+          <div style={{ fontSize: 13, color: C.dim, margin: "8px 0 14px", textAlign: "center" }}>{settings.serie ? "Die Striche zählen weiter." : "Punkte und Striche starten bei 0."}</div>
+          <button onClick={() => { setModal(null); neuesSpiel(); }} style={{ ...btn(true), width: "100%" }}>Spiel starten</button>
+        </Modal>
+      )}
+      {modal === "serieEnd" && <SerieModal serie={serie} striche={striche} onDone={serieBeenden} onClose={() => setModal(null)} />}
       {modal === "claim" && r.claimReport && <ClaimReportModal rep={r.claimReport} deck={deck} onClose={() => setModal(null)} />}
       {modal === "tafel" && <TafelModal game={tafelGame} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
         onReplay={(rec) => setReplayRec(rec)} onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
