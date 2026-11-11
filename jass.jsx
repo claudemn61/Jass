@@ -2519,7 +2519,16 @@ function JassApp() {
   // Einstellung «Kartenreihen» (nur iPhone): Hand in zwei überlappenden Reihen mit grösseren Karten
   const twoRows = !big && settings.handRows === 2;
   const cwH = twoRows ? Math.max(cw, Math.min(Math.floor((W - 16) / 4.2), Math.floor(vh * 0.17))) : cw;
-  const handRows = twoRows && hand.length > 5 ? [hand.slice(0, Math.floor(hand.length / 2)), hand.slice(Math.floor(hand.length / 2))] : [hand];
+  // Teilung der Hand: möglichst gleiche Farben in derselben Reihe (Schnitt an einer Farbgrenze, je Reihe höchstens 5 Karten), sonst oben weniger Karten als unten
+  const handSplit = (() => {
+    const n = hand.length, ideal = Math.floor(n / 2);
+    let best = ideal, bd = 99;
+    for (let k = Math.max(1, n - 5); k <= Math.min(5, n - 1); k++) {
+      if (Math.floor(hand[k - 1] / 9) !== Math.floor(hand[k] / 9) && (Math.abs(k - n / 2) < bd || (Math.abs(k - n / 2) === bd && k < best))) { best = k; bd = Math.abs(k - n / 2); }
+    }
+    return bd <= 1.5 ? best : ideal; // nur wenn die Reihen ausgeglichen bleiben (z.B. 4/5, 3/6 nicht)
+  })();
+  const handRows = twoRows && hand.length > 5 ? [hand.slice(0, handSplit), hand.slice(handSplit)] : [hand];
   const step = twoRows ? (cwH > 0 ? Math.min(cwH + 4, (W - 16 - cwH) / 4) : 0) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
   const handW = cwH + step * Math.max(0, (twoRows ? Math.max(...handRows.map((x) => x.length)) : hand.length) - 1);
   const rowOff = Math.round(cwH * 1.5 * 0.56); // Versatz der zweiten Reihe
