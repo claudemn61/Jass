@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.2.1";
 
 const CHANGELOG = [
+  {
+    version: "2.2.1",
+    changes: [
+      "Jasstafel: bei gesetzter Serie zusätzlich der Reiter «Serie» mit der Aufstellung aller Runden aller Spiele der Serie (beendete Spiele und laufendes Spiel)",
+    ],
+  },
   {
     version: "2.2.0",
     changes: [
@@ -1932,13 +1938,67 @@ function TafelRueckseite({ striche }) {
   );
 }
 
-function TafelModal({ game, deck, striche, onResetStriche, onRemove, onReplay, onClose }) {
+// Aufstellung der Runden eines Spiels (Tippen auf eine Runde: Replay)
+function RoundsTable({ game, hist, total, deck, onReplay }) {
+  const history = hist || game.history, tot = total || game.scores;
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+      <thead>
+        <tr style={{ color: C.dim, textAlign: "right" }}>
+          <th style={{ textAlign: "left", padding: 4 }}>#</th><th style={{ textAlign: "left", padding: 4 }}>Trumpf</th><th style={{ padding: 4 }}>Wir</th><th style={{ padding: 4 }}>Gegner</th>
+        </tr>
+      </thead>
+      <tbody>
+        {history.map((h) => (
+          <tr key={h.no} onClick={h.rec && h.rec.tricks.length > 0 && onReplay ? () => onReplay(h.rec) : undefined} title={h.rec ? "Replay dieser Runde" : undefined}
+            style={{ borderTop: "1px solid " + C.line, textAlign: "right", cursor: h.rec && onReplay ? "pointer" : "default" }}>
+            <td style={{ textAlign: "left", padding: 4, color: C.dim }}>{h.rec && onReplay ? "↺ " : ""}{h.no}</td>
+            <td style={{ textAlign: "left", padding: 4 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ModeIcon t={h.trump} deck={deck} size={16} />{modeName(h.trump, deck)}</span>
+              <span style={{ color: C.dim, fontSize: 12 }}> · {h.live ? "Weis geschrieben (laufende Runde)" : NAMES[h.decider] + (h.pushed ? " (geschoben)" : "")}</span>
+            </td>
+            <td style={{ padding: 4 }}>{h.total[0]}{h.parts && h.parts[0][0] > 0 ? " (" + h.parts[0][0] + ")" : ""}{h.match === 0 ? " M" : ""}</td>
+            <td style={{ padding: 4 }}>{h.total[1]}{h.parts && h.parts[0][1] > 0 ? " (" + h.parts[0][1] + ")" : ""}{h.match === 1 ? " M" : ""}</td>
+          </tr>
+        ))}
+        <tr style={{ borderTop: "2px solid " + C.gold, fontWeight: 800, textAlign: "right" }}>
+          <td colSpan={2} style={{ textAlign: "left", padding: 4 }}>Total (Ziel {game.target})</td>
+          <td style={{ padding: 4 }}>{tot[0]}</td><td style={{ padding: 4 }}>{tot[1]}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+// Serie: alle Spiele der Serie mit allen Runden (beendete Spiele + laufendes Spiel)
+function SerieList({ game, serie, deck, onReplay }) {
+  const won = [0, 1].map((t) => serie.filter((g) => g.w === t).length);
+  return (
+    <div>
+      <div style={{ fontWeight: 800, marginBottom: 10 }}>{serie.length} {serie.length === 1 ? "Spiel" : "Spiele"} beendet · gewonnen: Wir {won[0]} : {won[1]} Gegner</div>
+      {serie.map((g, i) => (
+        <div key={i} style={{ marginBottom: 14 }}>
+          <div style={{ color: C.gold, fontWeight: 800, marginBottom: 4 }}>Spiel {i + 1} – {g.s[0]} : {g.s[1]} ({g.w === 0 ? "gewonnen" : "verloren"})</div>
+          {g.h ? <RoundsTable game={game} hist={g.h} total={g.s} deck={deck} /> : <div style={{ fontSize: 12, color: C.dim }}>Keine Rundendaten (Spiel vor diesem Update).</div>}
+        </div>
+      ))}
+      {!game.over && (
+        <div>
+          <div style={{ color: C.gold, fontWeight: 800, marginBottom: 4 }}>Spiel {serie.length + 1} – läuft ({game.scores[0]} : {game.scores[1]})</div>
+          {game.history.length ? <RoundsTable game={game} deck={deck} onReplay={onReplay} /> : <div style={{ fontSize: 12, color: C.dim }}>Noch keine Runde gespielt.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TafelModal({ game, deck, striche, serie, onResetStriche, onRemove, onReplay, onClose }) {
   const [side, setSide] = useState("vorne");
   const [edit, setEdit] = useState(false); // Striche bearbeiten ein-/ausgeblendet
   return (
     <Modal title="Jasstafel" onClose={onClose} wide>
       <div style={{ marginBottom: 10 }}>
-        <Choice value={side} onChange={setSide} options={[["vorne", "Punkte"], ["hinten", "Striche"], ["liste", "Runden"]]} />
+        <Choice value={side} onChange={setSide} options={[["vorne", "Punkte"], ["hinten", "Striche"], ["liste", "Runden"]].concat(serie ? [["serie", "Serie"]] : [])} />
       </div>
       {side === "vorne" && <TafelVorderseite game={game} />}
       {side === "hinten" && (
@@ -1970,33 +2030,8 @@ function TafelModal({ game, deck, striche, onResetStriche, onRemove, onReplay, o
           </>}
         </div>
       )}
-      {side === "liste" && (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-          <thead>
-            <tr style={{ color: C.dim, textAlign: "right" }}>
-              <th style={{ textAlign: "left", padding: 4 }}>#</th><th style={{ textAlign: "left", padding: 4 }}>Trumpf</th><th style={{ padding: 4 }}>Wir</th><th style={{ padding: 4 }}>Gegner</th>
-            </tr>
-          </thead>
-          <tbody>
-            {game.history.map((h) => (
-              <tr key={h.no} onClick={h.rec && h.rec.tricks.length > 0 ? () => onReplay(h.rec) : undefined} title={h.rec ? "Replay dieser Runde" : undefined}
-                style={{ borderTop: "1px solid " + C.line, textAlign: "right", cursor: h.rec ? "pointer" : "default" }}>
-                <td style={{ textAlign: "left", padding: 4, color: C.dim }}>{h.rec ? "↺ " : ""}{h.no}</td>
-                <td style={{ textAlign: "left", padding: 4 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ModeIcon t={h.trump} deck={deck} size={16} />{modeName(h.trump, deck)}</span>
-                  <span style={{ color: C.dim, fontSize: 12 }}> · {h.live ? "Weis geschrieben (laufende Runde)" : NAMES[h.decider] + (h.pushed ? " (geschoben)" : "")}</span>
-                </td>
-                <td style={{ padding: 4 }}>{h.total[0]}{h.parts && h.parts[0][0] > 0 ? " (" + h.parts[0][0] + ")" : ""}{h.match === 0 ? " M" : ""}</td>
-                <td style={{ padding: 4 }}>{h.total[1]}{h.parts && h.parts[0][1] > 0 ? " (" + h.parts[0][1] + ")" : ""}{h.match === 1 ? " M" : ""}</td>
-              </tr>
-            ))}
-            <tr style={{ borderTop: "2px solid " + C.gold, fontWeight: 800, textAlign: "right" }}>
-              <td colSpan={2} style={{ textAlign: "left", padding: 4 }}>Total (Ziel {game.target})</td>
-              <td style={{ padding: 4 }}>{game.scores[0]}</td><td style={{ padding: 4 }}>{game.scores[1]}</td>
-            </tr>
-          </tbody>
-        </table>
-      )}
+      {side === "liste" && <RoundsTable game={game} deck={deck} onReplay={onReplay} />}
+      {side === "serie" && serie && <SerieList game={game} serie={serie} deck={deck} onReplay={onReplay} />}
     </Modal>
   );
 }
@@ -2364,7 +2399,7 @@ function JassApp() {
       ...s, rounds: s.rounds + 1, matches: s.matches + (res.match === 0 ? 1 : 0),
       played: s.played + (ng.over ? 1 : 0), won: s.won + (ng.over && ng.over.winner === 0 ? 1 : 0),
     }));
-    if (ng.over) setSerie((sv) => sv.concat([{ s: ng.scores.slice(), w: ng.over.winner }]));
+    if (ng.over) setSerie((sv) => sv.concat([{ s: ng.scores.slice(), w: ng.over.winner, h: ng.history.map(({ rec, ...e }) => e) }]));
     setStriche((st) => {
       const n = { match: st.match.slice(), sieg: st.sieg.slice(), berg: st.berg.slice() };
       if (res.match != null) n.match[res.match]++;
@@ -2873,7 +2908,7 @@ function JassApp() {
       )}
       {modal === "serieEnd" && <SerieModal serie={serie} striche={striche} onDone={serieBeenden} onClose={() => setModal(null)} />}
       {modal === "claim" && r.claimReport && <ClaimReportModal rep={r.claimReport} deck={deck} onClose={() => setModal(null)} />}
-      {modal === "tafel" && <TafelModal game={tafelGame} deck={deck} striche={striche} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
+      {modal === "tafel" && <TafelModal game={tafelGame} deck={deck} striche={striche} serie={settings.serie ? serie : null} onResetStriche={() => setStriche({ match: [0, 0], sieg: [0, 0], berg: [0, 0] })}
         onReplay={(rec) => setReplayRec(rec)} onRemove={(k, t) => setStriche((st) => ({ ...st, [k]: st[k].map((v, i) => (i === t ? Math.max(0, v - 1) : v)) }))} onClose={() => setModal(null)} />}
       {modal === "last" && r.lastTrick && <LastTrickModal lt={r.lastTrick} deck={deck} trump={r.trump} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} inGame onImages={() => setModal("images")} onClose={() => setModal(null)} />}
