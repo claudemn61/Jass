@@ -202,7 +202,7 @@ function save(key, val) {
 const DEFAULT_NAMES = ["Du", "Rechts", "Partner", "Links"];
 const DEFAULT_SETTINGS = { names: DEFAULT_NAMES.slice(), deck: "ch", target: 2500, mult: "stufe", speed: "normal", oneTap: false, customImgs: true, imgIndex: true, imgOrder: "farbe", level: "stark", dimIllegal: true, openCards: false };
 // «Standard» in den Settings (ohne Namen, Eigene Kartenbilder, Serie)
-const STANDARD_SETTINGS = { shuffleSeats: false, teamDraw: false, target: 2500, mult: "stufe", level: "stark", speed: "normal", openCards: false, dimIllegal: false, dealMode: "geber", weisAsk: false, sortDir: "rl", handRows: 1, playMode: "tap", oneTap: true, thank: "auto", claimAll: false, deck: "ch" };
+const STANDARD_SETTINGS = { shuffleSeats: false, teamDraw: false, target: 2500, mult: "stufe", level: "stark", speed: "normal", openCards: false, dimIllegal: false, dealMode: "geber", weisAsk: false, sortDir: "rl", handRows: 1, trumpAt: "oben", playMode: "tap", oneTap: true, thank: "auto", claimAll: false, deck: "ch" };
 const SPEEDS = { langsam: { bot: 1000, trick: 2000 }, normal: { bot: 650, trick: 1300 }, schnell: { bot: 300, trick: 700 }, manuell: { bot: 0, trick: 0 } };
 const SUIT_NAMES = { ch: ["Schellen", "Rosen", "Schilten", "Eicheln"], fr: ["Ecken", "Herz", "Schaufel", "Kreuz"] };
 const RANK_LABEL = { ch: ["6", "7", "8", "9", "10", "U", "O", "K", "A"], fr: ["6", "7", "8", "9", "10", "B", "D", "K", "A"] };
@@ -1678,6 +1678,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Nur iPhone: deine Hand in zwei Reihen mit grösseren Karten – besser lesbar.")}
         {row("play", "Karte spielen", <Choice value={settings.playMode === "swipe" ? "swipe" : "tap"} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["tap", "Tippen"], ["swipe", "Wischen"]]} />,
           "Tippen: Karte antippen spielt sie sofort. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.")}
+        {row("trumpat", "Trumpf-Anzeige", <Choice value={settings.trumpAt === "spieler" ? "spieler" : "oben"} onChange={(v) => set("trumpAt", v)} options={[["oben", "Oben"], ["spieler", "Beim Spieler"]]} />,
+          "Oben: der Trumpf steht gross in der Titelzeile. Beim Spieler: das Symbol steht beim Namen des Spielers, der den Trumpf gewählt hat (bei dir über der Hand).")}
         {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Manuell"], ["auto", "Auto"], ["aus", "Aus"]]} />,
           "Manuell: du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
         {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Mehrere"], [false, "Einzeln"]]} />,
@@ -2715,6 +2717,7 @@ function JassApp() {
     );
   };
 
+  const trumpAtSeat = settings.trumpAt === "spieler"; // Einstellung «Trumpf-Anzeige»: beim Ansager statt oben
   const Seat = ({ p, style }) => {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
@@ -2731,14 +2734,14 @@ function JassApp() {
             {/* Name unter den Karten (mit Stern bei Ansage) */}
             <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
               border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
-              boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>{NAMES[p]}{star}</div>
+              boxShadow: curHolder === p ? "0 0 10px " + STICH : "none", display: "flex", alignItems: "center", gap: 6 }}>{NAMES[p]}{star}{trumpAtSeat && isDecider && <ModeIcon t={r.trump} deck={deck} size={Math.round(26 * uiK)} />}</div>
           </>
         ) : (
           // iPhone: nur der Name
           <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
             border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
             boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
-            {NAMES[p]}{star}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{NAMES[p]}{star}{trumpAtSeat && isDecider && <ModeIcon t={r.trump} deck={deck} size={Math.round(26 * uiK)} />}</span>
           </div>
         )}
         {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} />}
@@ -2759,8 +2762,8 @@ function JassApp() {
             // iPad: «x & y» links, Trumpf in der Mitte, Gegner rechts
             <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
               {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
-                <div key="t" style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 12px", borderRadius: 20, fontSize: 14, visibility: r.trump != null ? "visible" : "hidden" }}>
-                  {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={24} />}
+                <div key="t" style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 12px", borderRadius: 20, fontSize: 14, visibility: r.trump != null && !trumpAtSeat ? "visible" : "hidden" }}>
+                  {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={38} />}
                 </div>
               ) : (
                 <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
@@ -2774,8 +2777,8 @@ function JassApp() {
           // iPhone: «Wir» links, Trumpf in der Mitte, «Gegner» rechts
           <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }}>
             {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
-              <div key="t" title={r.trump != null ? modeName(r.trump, deck) : ""} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20, visibility: r.trump != null ? "visible" : "hidden", minWidth: 32, minHeight: 32, boxSizing: "border-box", justifyContent: "center" }}>
-                {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={22} />}
+              <div key="t" title={r.trump != null ? modeName(r.trump, deck) : ""} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20, visibility: r.trump != null && !trumpAtSeat ? "visible" : "hidden", minWidth: 46, minHeight: 46, boxSizing: "border-box", justifyContent: "center" }}>
+                {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={34} />}
               </div>
             ) : (
               <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 4, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
@@ -2862,7 +2865,7 @@ function JassApp() {
       )}
 
       {/* Status + Hand */}
-      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
+      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{trumpAtSeat && r.trump != null && r.decider === 0 && <span style={{ display: "inline-block", verticalAlign: "middle", marginRight: 8 }}><ModeIcon t={r.trump} deck={deck} size={Math.round(26 * uiK)} /></span>}{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff, margin: "0 auto" }}>
           {handRows.flatMap((row, ri) => row.map((c, i) => [c, i, ri, row.length])).map(([c, i, ri, n]) => (
