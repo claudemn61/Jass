@@ -2723,6 +2723,8 @@ function JassApp() {
     const active = (r.phase === "play" && r.turn === p) || (r.phase === "choose" && r.decider === p);
     const isDecider = r.trump != null && r.decider === p;
     const star = isDecider ? (r.pushed ? " ☆" : " ★") : "";
+    // Trumpf-Symbol beim Ansager (ausserhalb der Namenskachel): Links/Rechts über dem Namen, Partner daneben
+    const tIcon = trumpAtSeat && isDecider ? <ModeIcon t={r.trump} deck={deck} size={Math.round(30 * uiK)} /> : null;
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
         {big ? (
@@ -2733,17 +2735,27 @@ function JassApp() {
               <CardFan cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
             </div>
             {/* Name unter den Karten (mit Stern bei Ansage) */}
+            {(p === 1 || p === 3) && tIcon}
+            <div style={{ position: "relative" }}>
             <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
               border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
-              boxShadow: curHolder === p ? "0 0 10px " + STICH : "none", display: "flex", flexDirection: p === 1 || p === 3 ? "column" : "row", alignItems: "center", gap: p === 1 || p === 3 ? 2 : 6 }}>{NAMES[p]}{star}{trumpAtSeat && isDecider && <ModeIcon t={r.trump} deck={deck} size={Math.round(26 * uiK)} />}</div>
+              boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>{NAMES[p]}{star}</div>
+            {p === 2 && tIcon && <span style={{ position: "absolute", left: "100%", top: "50%", transform: "translateY(-50%)", marginLeft: 6, display: "flex" }}>{tIcon}</span>}
+            </div>
           </>
         ) : (
           // iPhone: nur der Name
+          <>
+          {(p === 1 || p === 3) && tIcon}
+          <div style={{ position: "relative" }}>
           <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
             border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
             boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
-            <span style={{ display: "inline-flex", flexDirection: p === 1 || p === 3 ? "column" : "row", alignItems: "center", gap: p === 1 || p === 3 ? 2 : 6 }}>{NAMES[p]}{star}{trumpAtSeat && isDecider && <ModeIcon t={r.trump} deck={deck} size={Math.round(26 * uiK)} />}</span>
+            {NAMES[p]}{star}
           </div>
+          {p === 2 && tIcon && <span style={{ position: "absolute", left: "100%", top: "50%", transform: "translateY(-50%)", marginLeft: 6, display: "flex" }}>{tIcon}</span>}
+          </div>
+          </>
         )}
         {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} />}
         <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
