@@ -197,6 +197,7 @@
   // Nur einfach zählende Trümpfe (bei gestaffelter Zählung): Rosen (1) und Eicheln (3)
   const CHEAP = [1, 3];
   const CHEAP_HIT = 0.65;    // Simulation: Anteil der Verteilungen mit ≥ 100 Punkten
+  const SAFE_MATCH = 250;   // Zusatzgewicht pro simuliertem Konter-Match bei der Pflichtwahl nach dem Schieben (roh, × Multiplikator)
   const CHEAP_MIN_SC = 56;   // Heuristik: Mindestwertung für Rosen/Eicheln aus der Vorhand
   function botChooseTrump(hand, canPush, multMode) {
     let best = 0, bestSc = -Infinity;
@@ -590,6 +591,9 @@
     const unknown = ALL.filter((c) => !hand.includes(c));
     const myTeam = team(p);
     const val = [0, 0, 0, 0, 0, 0];
+    const matchAgainst = [0, 0, 0, 0, 0, 0]; // Verteilungen, in denen die Gegner alle 9 Stiche machen (Konter-Match)
+    // Nach dem Schieben muss der Partner wählen, die Vorhand (Schieber) spielt aus
+    const lead = canPush ? p : (p + 2) % 4;
     const hit100 = [0, 0, 0, 0, 0, 0]; // in wie vielen Verteilungen das eigene Team (Stiche + Weis + Stöck) ≥ 100 Punkte erreicht
     let pushVal = 0;
     const noVoids = [0, 1, 2, 3].map(() => [false, false, false, false]);
@@ -609,7 +613,8 @@
         }
         eg = { run, mult, target: opts.target };
       }
-      const r = rollout(hands, [], [], p, m, p, pre == null ? eg : null);
+      const r = rollout(hands, [], [], lead, m, lead, pre == null ? eg : null);
+      if (count && r.tricks[1 - myTeam] === 9) matchAgainst[m]++;
       if (count && r.pts[myTeam] + weis[myTeam] + stoeck[myTeam] + (r.tricks[myTeam] === 9 ? 100 : 0) >= 100) hit100[m]++;
       if (pre != null) r.winner = pre;
       let v = rolloutValue(r, myTeam, [0, 0]) + (weis[myTeam] - weis[1 - myTeam]) + (stoeck[myTeam] - stoeck[1 - myTeam]);
@@ -622,6 +627,8 @@
       for (let m = 0; m < 6; m++) val[m] += evalMode(hands, m, true);
       if (canPush) pushVal += evalMode(hands, botChooseTrump(hands[(p + 2) % 4], false), false);
     }
+    // Nach dem Schieben (Pflichtwahl des Partners): vorsichtig wählen – jeder simulierte Konter-Match kostet zusätzlich
+    if (!canPush) for (let m = 0; m < 6; m++) val[m] -= matchAgainst[m] * SAFE_MATCH * multiplier(m, multMode);
     let best = 0;
     for (let m = 1; m < 6; m++) if (val[m] > val[best]) best = m;
     if (canPush && pushVal > val[best]) return "push";
