@@ -18,6 +18,7 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
 - Pflichtwahl nach dem Schieben (Partner, Stufe «Stark», `botChooseTrumpSmart` mit `canPush=false`): simuliert mit dem
   Schieber als Ausspieler (`lead = (p+2)%4`) und zieht jeden simulierten Konter-Match (Gegner alle 9 Stiche) zusätzlich ab
   (`SAFE_MATCH`). Messung: Konter-Match 0.9 % → 0.5 %, Ø Differenz +14, Duell 58 % für die neue Version (60 Partien).
+  Bei schwacher Hand (Erwartungswert < `SAFE_WEAK` = 0) nur Rosen/Eicheln (×1), damit eine Niederlage einfach zählt; Messung: neutral (Ø −1 Punkt).
 - Trumpfwahl-Strategie (alle Computer): aus der Vorhand Rosen/Eicheln (bei gestaffelter Zählung nur ×1)
   nur, wenn ≥ 100 Punkte realistisch sind (Simulation: ≥ `CHEAP_HIT` der Verteilungen; Heuristik: Wertung
   ≥ `CHEAP_MIN_SC`), sonst schieben. Gilt nicht für den Partner nach dem Schieben (muss wählen).

@@ -197,6 +197,7 @@
   // Nur einfach zählende Trümpfe (bei gestaffelter Zählung): Rosen (1) und Eicheln (3)
   const CHEAP = [1, 3];
   const CHEAP_HIT = 0.65;    // Simulation: Anteil der Verteilungen mit ≥ 100 Punkten
+  const SAFE_WEAK = 0;     // Pflichtwahl: Erwartungswert (roh) unter dieser Schwelle = schwache Hand → nur einfach zählende Trümpfe
   const SAFE_MATCH = 250;   // Zusatzgewicht pro simuliertem Konter-Match bei der Pflichtwahl nach dem Schieben (roh, × Multiplikator)
   const CHEAP_MIN_SC = 56;   // Heuristik: Mindestwertung für Rosen/Eicheln aus der Vorhand
   function botChooseTrump(hand, canPush, multMode) {
@@ -631,6 +632,9 @@
     if (!canPush) for (let m = 0; m < 6; m++) val[m] -= matchAgainst[m] * SAFE_MATCH * multiplier(m, multMode);
     let best = 0;
     for (let m = 1; m < 6; m++) if (val[m] > val[best]) best = m;
+    // Pflichtwahl mit schwacher Hand (kein klar positiver Erwartungswert): einfach zählende Trümpfe (Rosen/Eicheln) bevorzugen,
+    // damit eine Niederlage nur einfach zählt
+    if (!canPush && multMode === "stufe" && val[best] / n < SAFE_WEAK && !CHEAP.includes(best)) best = val[CHEAP[0]] >= val[CHEAP[1]] ? CHEAP[0] : CHEAP[1];
     if (canPush && pushVal > val[best]) return "push";
     // Strategie für alle: Vorhand wählt Rosen oder Eicheln (nur einfach zählend) nur, wenn 100 Punkte
     // realistisch sind (≥ CHEAP_HIT der Verteilungen), sonst schieben
