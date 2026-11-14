@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.2.1";
+const APP_VERSION = "2.2.2";
 
 const CHANGELOG = [
+  {
+    version: "2.2.2",
+    changes: [
+      "Kartenreihen (iPhone): neue Variante «Fächer» – die Hand in einer Reihe, aufgefächert wie echte Karten",
+    ],
+  },
   {
     version: "2.2.1",
     changes: [
@@ -1674,8 +1680,8 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           "Auto: alle Weise werden automatisch angesagt. Fragen: die App fragt vor deiner ersten Karte, ob du weisen willst; Partner und Gegner entscheiden im Hintergrund nach der Spielsituation.")}
         {row("sort", "Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Li → Re"], ["rl", "Re → Li"]]} />,
           "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
-        {!big && row("rows", "Kartenreihen", <Choice value={settings.handRows === 2 ? 2 : 1} onChange={(v) => set("handRows", v)} options={[[1, "1 Reihe"], [2, "2 Reihen"]]} />,
-          "Nur iPhone: deine Hand in zwei Reihen mit grösseren Karten – besser lesbar.")}
+        {!big && row("rows", "Kartenreihen", <Choice value={settings.handRows === 2 ? 2 : settings.handRows === "fan" ? "fan" : 1} onChange={(v) => set("handRows", v)} options={[[1, "1 Reihe"], [2, "2 Reihen"], ["fan", "Fächer"]]} />,
+          "Nur iPhone: 1 Reihe (Standard), 2 Reihen mit grösseren Karten (besser lesbar) oder Fächer: eine Reihe, aufgefächert wie echte Karten.", "phone")}
         {row("play", "Karte spielen", <Choice value={settings.playMode === "swipe" ? "swipe" : "tap"} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["tap", "Tippen"], ["swipe", "Wischen"]]} />,
           "Tippen: Karte antippen spielt sie sofort. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.")}
         {row("trumpat", "Trumpf-Anzeige", <Choice value={settings.trumpAt === "spieler" || settings.trumpAt === "beides" ? settings.trumpAt : "oben"} onChange={(v) => set("trumpAt", v)} options={[["oben", "Oben"], ["spieler", "Beim Spieler"], ["beides", "Beides"]]} />,
@@ -2555,6 +2561,7 @@ function JassApp() {
   const uiK = big ? Math.min(1.5, cw / 78) : 1;
   // Einstellung «Kartenreihen» (nur iPhone): Hand in zwei überlappenden Reihen mit grösseren Karten
   const twoRows = !big && settings.handRows === 2;
+  const fan = !big && settings.handRows === "fan"; // Fächer: eine Reihe, aufgefächert wie echte Karten
   const cwH = twoRows ? Math.max(cw, Math.min(Math.floor((W - 16) / 4.2), Math.floor(vh * 0.17))) : cw;
   // Teilung der Hand: möglichst gleiche Farben in derselben Reihe (Schnitt an einer Farbgrenze, je Reihe höchstens 6 Karten), sonst oben weniger Karten als unten
   const handSplit = (() => {
@@ -2567,9 +2574,10 @@ function JassApp() {
   })();
   const handRows = twoRows && hand.length > 5 ? [hand.slice(0, handSplit), hand.slice(handSplit)] : [hand];
   const rowMax = Math.max(5, ...handRows.map((x) => x.length)); // Kartenabstand für alle Reihen gleich
-  const step = twoRows ? Math.min(cwH + 4, (W - 16 - cwH) / (rowMax - 1)) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
+  const step = fan ? Math.min(cw * 0.62, (W - 16 - cw - 76) / Math.max(1, hand.length - 1)) : twoRows ? Math.min(cwH + 4, (W - 16 - cwH) / (rowMax - 1)) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
   const handW = cwH + step * Math.max(0, (twoRows ? Math.max(...handRows.map((x) => x.length)) : hand.length) - 1);
   const rowOff = Math.round(cwH * 1.5 * 0.56); // Versatz der zweiten Reihe
+  const fanAng = 3.4, fanDrop = 0.9; // Grad je Karte und Absenkung (px × Abstand²) zum Rand
   // Trumpfwahl: Breite eines der 7 Knöpfe (Zeile max. 560/760 px, 10 px Rand, 6 px Abstand)
   const chooseIcon = Math.round(((Math.min(vw, big ? 760 : 560) - 20 - 6 * 6) / 7) * 0.82);
   // gelegte Karten (Stich): iPhone 1,08×, iPad hoch 1,05×, iPad quer 0,86× der Handkartenbreite
@@ -2892,12 +2900,13 @@ function JassApp() {
       {/* Status + Hand */}
       <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) * 0.35 + 2px)", paddingTop: 18 }}>
-        <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff, margin: "0 auto" }}>
+        <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff + (fan ? 36 : 0), margin: "0 auto" }}>
           {handRows.flatMap((row, ri) => row.map((c, i) => [c, i, ri, row.length])).map(([c, i, ri, n]) => (
             <div key={c}
               onPointerDown={(e) => dragStart(e, c)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={() => setDrag(null)}
-              style={{ position: "absolute", left: twoRows ? (handW - (cwH + step * (n - 1))) / 2 + i * step : i * step, top: ri * rowOff, zIndex: drag && drag.c === c ? 60 : ri * 20 + i, touchAction: playMode === "swipe" ? "none" : "auto",
-                transform: drag && drag.c === c ? "translate(" + drag.dx + "px," + drag.dy + "px) rotate(" + drag.dx / 20 + "deg)" : "none",
+              style={{ position: "absolute", left: twoRows ? (handW - (cwH + step * (n - 1))) / 2 + i * step : i * step, top: ri * rowOff + (fan ? Math.round(Math.pow(i - (n - 1) / 2, 2) * fanDrop) : 0), zIndex: drag && drag.c === c ? 60 : ri * 20 + i, touchAction: playMode === "swipe" ? "none" : "auto",
+                transform: drag && drag.c === c ? "translate(" + drag.dx + "px," + drag.dy + "px) rotate(" + drag.dx / 20 + "deg)" : fan ? "rotate(" + (i - (n - 1) / 2) * fanAng + "deg)" : "none",
+                transformOrigin: fan && !(drag && drag.c === c) ? "50% 150%" : undefined,
                 transition: drag && drag.c === c ? "none" : "transform 0.15s" }}>
               <Card id={c} deck={deck} w={cwH} onClick={() => tapCard(c)} dim={settings.dimIllegal !== false && myTurn && !legal.includes(c)} raised={selected === c} trump={r.trump != null && E.isTrump(c, r.trump)} />
             </div>
