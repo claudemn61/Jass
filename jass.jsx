@@ -1543,7 +1543,7 @@ function Choice({ value, options, onChange }) {
     <div style={{ display: "flex", gap: L ? (options.length >= 4 ? 5 : 8) : 4, flexWrap: "nowrap" }}>
       {options.map(([v, l]) => (
         <button key={String(v)} onClick={() => onChange(v)}
-          style={{ ...btn(value === v), ...(value === v ? {} : { color: C.dim, fontWeight: 400 }), flex: "1 1 0", minWidth: 0, padding: L ? "12px 4px" : "5px 3px", fontSize: L ? (options.length >= 4 ? 14 : 16) : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
+          style={{ ...btn(value === v), ...(value === v ? {} : { color: C.dim, fontWeight: 400 }), flex: "1 1 0", minWidth: 0, padding: L ? "12px 4px" : options.length >= 4 ? "5px 0" : "5px 3px", fontSize: L ? (options.length >= 4 ? 14 : 16) : options.length >= 4 ? 11 : 13, lineHeight: 1.25, borderRadius: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</button>
       ))}
     </div>
   );
@@ -1632,13 +1632,15 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const big = vw >= 700;
   const cols = vw >= 1000 ? 3 : 2; // iPad: alles auf einem Bildschirm; iPhone: 2 Spalten, Zeilen mit ≥ 3 Optionen über die ganze Breite
   // eine Einstellung: kleine Beschriftung, Knöpfe auf einer Zeile, Hinweis hinter «ⓘ»
-  const row = (key, label, el, hintText, span) => (
-    <div key={key} style={{ gridColumn: span === true || (span === "phone" && !big) ? "1 / -1" : undefined, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: big ? 15 : 11, color: C.text, fontWeight: 700, marginBottom: big ? 8 : 3 }}>
-        <span>{label}</span>
-        {hintText && <span onClick={() => setHint({ ...hint, [key]: !hint[key] })} style={{ cursor: "pointer", color: hint[key] ? C.gold : C.dim, fontSize: 14, lineHeight: 1, padding: "0 4px" }}>ⓘ</span>}
+  const row = (key, label, el, hintText, stack) => (
+    <div key={key} style={{ minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: stack ? "stretch" : "center", flexDirection: stack ? "column" : "row", gap: stack ? 6 : 10, minWidth: 0 }}>
+        <div style={{ width: stack ? undefined : big ? 230 : 110, flexShrink: 0, display: "flex", alignItems: "center", gap: 2, fontSize: big ? 16 : 13, color: C.text, fontWeight: 700 }}>
+          <span>{label}</span>
+          {hintText && <span onClick={() => setHint({ ...hint, [key]: !hint[key] })} style={{ cursor: "pointer", color: hint[key] ? C.gold : C.dim, fontSize: 14, lineHeight: 1, padding: "0 4px" }}>ⓘ</span>}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>{el}</div>
       </div>
-      {el}
       {hintText && hint[key] && <div style={{ fontSize: 12, color: C.dim, marginTop: 5, lineHeight: 1.4 }}>{hintText}</div>}
     </div>
   );
@@ -1646,12 +1648,21 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
   const ownImgs = !!settings.showImgs;
   const nowGilt = inGame ? " Gilt ab dem nächsten Spiel." : "";
   return (
-    <Modal title="Settings" onClose={onClose} page tight fill={big} action={
+    <Modal title="Settings" onClose={onClose} page tight action={
       <button onClick={() => { if (window.confirm("Alle Settings auf Standard zurücksetzen? (Namen, Eigene Kartenbilder und Backup bleiben unverändert.)")) setSettings({ ...settings, ...STANDARD_SETTINGS }); }}
-        style={{ ...btn(false), padding: "6px 14px", fontSize: 14, borderRadius: 18, background: "rgba(0,0,0,0.25)" }}>Standard</button>} maxW={big ? Math.min(vw - 60, 1500) : undefined}>
+        style={{ ...btn(false), padding: "6px 14px", fontSize: 14, borderRadius: 18, background: "rgba(0,0,0,0.25)" }}>Standard</button>} maxW={big ? 760 : undefined}>
      <SetBigCtx.Provider value={big}>
       {/* iPad/Mac: Zeilen verteilen sich über die ganze Seitenhöhe; iPhone: kompakt */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", minmax(0, 1fr))", gap: (big ? 10 : 6) + "px " + (big ? 36 : 12) + "px", flex: big ? 1 : undefined, gridAutoRows: big ? "1fr" : undefined, alignItems: big ? "center" : undefined, paddingBottom: big ? 8 : 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: big ? 12 : 7, paddingBottom: big ? 8 : 0 }}>
+        <div style={{ fontSize: big ? 13 : 11, color: C.gold, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", marginTop: big ? 6 : 8, borderBottom: "1px solid " + C.line, paddingBottom: 2 }}>Spiel</div>
+        {row("ziel", "Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, "Wer zuerst die Zielpunkte erreicht, gewinnt." + nowGilt)}
+        {row("mult", "Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "1× / 2× / 3×"], ["einfach", "Alles 1×"]]} />,
+          (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + nowGilt)}
+        {row("level", "Spielstärke", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
+          "Normal: einfache Faustregeln. Stark: rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
+        {row("tempo", "Tempo", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"], ["manuell", "Manuell"]]} />,
+          "Tempo der Mitspieler. Manuell: jeder Zug der Mitspieler und das Einsammeln des Stichs erst nach Tippen auf den Teppich.")}
+        <div style={{ fontSize: big ? 13 : 11, color: C.gold, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", marginTop: big ? 6 : 8, borderBottom: "1px solid " + C.line, paddingBottom: 2 }}>Mitspieler</div>
         {row("namen", "Namen der Spieler", (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: big ? 10 : 5 }}>
             {names.map(([i, lab]) => (
@@ -1662,44 +1673,40 @@ function SettingsModal({ settings, setSettings, onClose, inGame, onImages }) {
           </div>
         ), "Reihenfolge: " + names.map((n) => n[1]).join(", ") + ". Leeres Feld = Standardname.", true)}
         {row("mit", "Mitspieler", <Choice value={settings.teamDraw ? "ziehen" : settings.shuffleSeats ? "zufall" : "fest"} onChange={(v) => setSettings({ ...settings, shuffleSeats: v === "zufall", teamDraw: v === "ziehen" })} options={[["fest", "Fest"], ["zufall", "Zufällig"], ["ziehen", "Ziehen"]]} />,
-          "Fest: Partner, links und rechts bleiben wie in den Namen oben. Zufällig: bei jedem neuen Spiel werden die drei Mitspieler neu auf die Plätze gesetzt – du hast nicht immer denselben Partner. Ziehen: Zu Beginn jedes neuen Spiels ziehen alle eine Karte aus dem Stapel (du tippst selbst auf den Stapel); die zwei höchsten spielen zusammen. Danach ziehst du gegen den Spieler links von dir: die tiefere Karte gibt im ersten Spiel, das Ass muss geben. Bei gleichen Karten wird nochmals gezogen. Die Mitspieler heissen dann «Mitspieler 1–3» (Namen oben). Leere Namen behalten den Standardnamen des Platzes.", "phone")}
-        {row("ziel", "Zielpunkte", <Choice value={settings.target} onChange={(v) => set("target", v)} options={[[1000, "1000"], [1500, "1500"], [2500, "2500"], [3000, "3000"]]} />, "Wer zuerst die Zielpunkte erreicht, gewinnt." + nowGilt, "phone")}
-        {row("mult", "Multiplikator", <Choice value={settings.mult} onChange={(v) => set("mult", v)} options={[["stufe", "1× / 2× / 3×"], ["einfach", "Alles 1×"]]} />,
-          (settings.mult === "stufe" ? (settings.deck === "ch" ? "Eicheln/Rosen ×1, Schellen/Schilten ×2, Obenabe/Undenufe ×3." : "Kreuz/Herz ×1, Ecken/Schaufel ×2, Obenabe/Undenufe ×3.") : "Alle Trümpfe zählen einfach.") + nowGilt)}
-        {row("level", "Spielstärke", <Choice value={settings.level} onChange={(v) => set("level", v)} options={[["normal", "Normal"], ["stark", "Stark"]]} />,
-          "Normal: einfache Faustregeln. Stark: rechnet vor jedem Zug viele mögliche Kartenverteilungen durch (gilt für Partner und Gegner).")}
-        {row("tempo", "Tempo", <Choice value={settings.speed} onChange={(v) => set("speed", v)} options={[["langsam", "Langsam"], ["normal", "Normal"], ["schnell", "Schnell"], ["manuell", "Manuell"]]} />,
-          "Tempo der Mitspieler. Manuell: jeder Zug der Mitspieler und das Einsammeln des Stichs erst nach Tippen auf den Teppich.", "phone")}
-        {row("offen", "Offene Karten", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Normal"], [true, "Offen"]]} />,
-          "Normal: verdeckt. Offen (Lernmodus): die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen.")}
-        {row("dim", "Nicht spielbare", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Grau"], [false, "Normal"]]} />,
-          "Grau: nicht spielbare Karten ausgrauen; Normal: wie alle anderen zeigen (eine nicht erlaubte Karte lässt sich trotzdem nicht spielen).")}
+          "Fest: Partner, links und rechts bleiben wie in den Namen oben. Zufällig: bei jedem neuen Spiel werden die drei Mitspieler neu auf die Plätze gesetzt – du hast nicht immer denselben Partner. Ziehen: Zu Beginn jedes neuen Spiels ziehen alle eine Karte aus dem Stapel (du tippst selbst auf den Stapel); die zwei höchsten spielen zusammen. Danach ziehst du gegen den Spieler links von dir: die tiefere Karte gibt im ersten Spiel, das Ass muss geben. Bei gleichen Karten wird nochmals gezogen. Die Mitspieler heissen dann «Mitspieler 1–3» (Namen oben). Leere Namen behalten den Standardnamen des Platzes.")}
+        <div style={{ fontSize: big ? 13 : 11, color: C.gold, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", marginTop: big ? 6 : 8, borderBottom: "1px solid " + C.line, paddingBottom: 2 }}>Ablauf</div>
         {row("deal", "Austeilen", <Choice value={settings.dealMode || "geber"} onChange={(v) => set("dealMode", v)} options={[["geber", "Geber"], ["mitte", "Mitte"], ["aus", "Aus"]]} />,
-          "Geber: die Karten fliegen vom Spieler, der in der Runde davor mit Trumpf/Schieben dran war; Mitte: von einem Stapel in der Tischmitte; Aus: sofort verteilt (ohne 5 Sekunden Animation).", "phone")}
+          "Geber: die Karten fliegen vom Spieler, der in der Runde davor mit Trumpf/Schieben dran war; Mitte: von einem Stapel in der Tischmitte; Aus: sofort verteilt (ohne 5 Sekunden Animation).")}
         {row("weis", "Weis", <Choice value={!!settings.weisAsk} onChange={(v) => set("weisAsk", v)} options={[[false, "Auto"], [true, "Fragen"]]} />,
           "Auto: alle Weise werden automatisch angesagt. Fragen: die App fragt vor deiner ersten Karte, ob du weisen willst; Partner und Gegner entscheiden im Hintergrund nach der Spielsituation.")}
-        {row("sort", "Kartensortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Li → Re"], ["rl", "Re → Li"]]} />,
-          "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
-        {!big && row("rows", "Kartenreihen", <Choice value={settings.handRows === 2 ? 2 : settings.handRows === "fan" ? "fan" : 1} onChange={(v) => set("handRows", v)} options={[[1, "1 Reihe"], [2, "2 Reihen"], ["fan", "Fächer"]]} />,
-          "Nur iPhone: 1 Reihe (Standard), 2 Reihen mit grösseren Karten (besser lesbar) oder Fächer: eine Reihe, aufgefächert wie echte Karten.", "phone")}
-        {row("play", "Karte spielen", <Choice value={settings.playMode === "swipe" ? "swipe" : "tap"} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["tap", "Tippen"], ["swipe", "Wischen"]]} />,
-          "Tippen: Karte antippen spielt sie sofort. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.")}
-        {row("trumpat", "Trumpf-Anzeige", <Choice value={settings.trumpAt === "spieler" || settings.trumpAt === "beides" ? settings.trumpAt : "oben"} onChange={(v) => set("trumpAt", v)} options={[["oben", "Oben"], ["spieler", "Beim Spieler"], ["beides", "Beides"]]} />,
-          "Oben: der Trumpf steht gross in der Titelzeile. Beim Spieler: das Symbol steht beim Namen des Spielers, der den Trumpf gewählt hat (bei dir über der Hand). Beides: oben und beim Spieler.")}
         {row("thank", "Bedanken", <Choice value={settings.thank || "knopf"} onChange={(v) => set("thank", v)} options={[["knopf", "Manuell"], ["auto", "Auto"], ["aus", "Aus"]]} />,
-          "Manuell: du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.", "phone")}
+          "Manuell: du bedankst dich selbst per Knopf (falsch bedankt = Spiel verloren), die Gegner automatisch. Auto: sobald ein Team die Zielpunkte erreicht, endet das Spiel sofort, ohne Knopf. Aus: kein vorzeitiges Ende, das Ziel zählt erst bei der Abrechnung am Rundenende.")}
         {row("bock", "Bock-Karten", <Choice value={settings.claimAll !== false} onChange={(v) => set("claimAll", v)} options={[[true, "Mehrere"], [false, "Einzeln"]]} />,
           "Mehrere: hat ein Spieler nur noch unschlagbare Böcke, werfen alle ihre Karten auf einmal hin und der Haufen geht an sein Team. Einzeln: auch dann wird jede Karte einzeln gespielt.")}
+        <div style={{ fontSize: big ? 13 : 11, color: C.gold, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", marginTop: big ? 6 : 8, borderBottom: "1px solid " + C.line, paddingBottom: 2 }}>Karten & Anzeige</div>
         {row("deck", "Karten", <Choice value={settings.deck} onChange={(v) => set("deck", v)} options={[["ch", "CH"], ["fr", "F"]]} />, "Deutschschweizer (Eicheln, Rosen, Schilten, Schellen) oder französische Karten.")}
-        {row("backup", "Backup", <BackupRow />, "Eine Datei mit Settings, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes Gerät übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben.")}
-        {/* Eigene Kartenbilder: ein-/ausblendbar */}
-        {row("imgs", "Eigene Kartenbilder", ownImgs
+        {row("imgs", "Eigene Bilder", ownImgs
           ? <div style={{ display: "flex", gap: 4 }}>
               <button onClick={onImages} style={{ ...btn(false), flex: 2, padding: big ? "12px 6px" : "5px 6px", fontSize: big ? 16 : 13, borderRadius: 10 }}>🃏 Bilder verwalten…</button>
               <button onClick={() => set("showImgs", false)} style={{ ...btn(false), flex: 1, padding: big ? "12px 6px" : "5px 6px", fontSize: big ? 16 : 13, borderRadius: 10 }}>Ausblenden</button>
             </div>
           : <button onClick={() => set("showImgs", true)} style={{ ...btn(false), width: "100%", padding: big ? "12px 6px" : "5px 6px", fontSize: big ? 16 : 13, borderRadius: 10 }}>Einblenden ▾</button>,
           "Fotos/Scans deiner eigenen Karten, Rückseite und Farbsymbole – aus Copyright-Gründen nur auf diesem Gerät gespeichert.")}
+
+        {row("sort", "Sortierung", <Choice value={settings.sortDir || "lr"} onChange={(v) => set("sortDir", v)} options={[["lr", "Li → Re"], ["rl", "Re → Li"]]} />,
+          "Deine Hand: Eicheln, Rosen, Schilten, Schellen, innerhalb der Farbe immer Ass → 6 (auch bei Undenufe). Links→rechts: Trumpf ganz links; Rechts→links: gespiegelt, Trumpf ganz rechts.")}
+        {!big && row("rows", "Kartenreihen", <Choice value={settings.handRows === 2 ? 2 : settings.handRows === "fan" ? "fan" : 1} onChange={(v) => set("handRows", v)} options={[[1, "1 Reihe"], [2, "2 Reihen"], ["fan", "Fächer"]]} />,
+          "Nur iPhone: 1 Reihe (Standard), 2 Reihen mit grösseren Karten (besser lesbar) oder Fächer: eine Reihe, aufgefächert wie echte Karten.")}
+        {row("play", "Karte spielen", <Choice value={settings.playMode === "swipe" ? "swipe" : "tap"} onChange={(v) => setSettings({ ...settings, playMode: v, oneTap: v === "tap" })} options={[["tap", "Tippen"], ["swipe", "Wischen"]]} />,
+          "Tippen: Karte antippen spielt sie sofort. Wischen: Karte mit dem Finger nach oben auf den Tisch ziehen.")}
+        {row("dim", "Unspielbare", <Choice value={settings.dimIllegal !== false} onChange={(v) => set("dimIllegal", v)} options={[[true, "Grau"], [false, "Normal"]]} />,
+          "Grau: nicht spielbare Karten ausgrauen; Normal: wie alle anderen zeigen (eine nicht erlaubte Karte lässt sich trotzdem nicht spielen).")}
+        {row("trumpat", "Trumpf", <Choice value={settings.trumpAt === "spieler" || settings.trumpAt === "beides" ? settings.trumpAt : "oben"} onChange={(v) => set("trumpAt", v)} options={[["oben", "Oben"], ["spieler", "Spieler"], ["beides", "Beides"]]} />,
+          "Oben: der Trumpf steht gross in der Titelzeile. Beim Spieler: das Symbol steht beim Namen des Spielers, der den Trumpf gewählt hat (bei dir über der Hand). Beides: oben und beim Spieler.")}
+        {row("offen", "Lernmodus", <Choice value={!!settings.openCards} onChange={(v) => set("openCards", v)} options={[[false, "Normal"], [true, "Offen"]]} />,
+          "Normal: verdeckt. Offen (Lernmodus): die Karten der Mitspieler liegen offen bei ihrem Platz – nur du siehst sie, die Computer spielen wie gewohnt ohne dieses Wissen.")}
+        <div style={{ fontSize: big ? 13 : 11, color: C.gold, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", marginTop: big ? 6 : 8, borderBottom: "1px solid " + C.line, paddingBottom: 2 }}>Daten</div>
+        {row("backup", "Backup", <BackupRow />, "Eine Datei mit Settings, Spielstand, Statistik, Strichen und deinen eigenen Kartenbildern – z.B. per AirDrop auf ein anderes Gerät übertragen und dort laden. Die Datei enthält deine Scans: nur privat weitergeben.")}
       </div>
      </SetBigCtx.Provider>
     </Modal>
