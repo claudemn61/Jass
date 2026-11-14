@@ -2574,10 +2574,10 @@ function JassApp() {
   })();
   const handRows = twoRows && hand.length > 5 ? [hand.slice(0, handSplit), hand.slice(handSplit)] : [hand];
   const rowMax = Math.max(5, ...handRows.map((x) => x.length)); // Kartenabstand für alle Reihen gleich
-  const step = fan ? Math.min(cw * 0.62, (W - 16 - cw - 76) / Math.max(1, hand.length - 1)) : twoRows ? Math.min(cwH + 4, (W - 16 - cwH) / (rowMax - 1)) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
+  const step = fan ? Math.min(cw * 0.62, (W - 16 - cw - 110) / Math.max(1, hand.length - 1)) : twoRows ? Math.min(cwH + 4, (W - 16 - cwH) / (rowMax - 1)) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
   const handW = cwH + step * Math.max(0, (twoRows ? Math.max(...handRows.map((x) => x.length)) : hand.length) - 1);
   const rowOff = Math.round(cwH * 1.5 * 0.56); // Versatz der zweiten Reihe
-  const fanAng = 3.4, fanDrop = 0.9; // Grad je Karte und Absenkung (px × Abstand²) zum Rand
+  const fanAng = 5.2, fanDrop = 1.5; // Grad je Karte und Absenkung (px × Abstand²) zum Rand
   // Trumpfwahl: Breite eines der 7 Knöpfe (Zeile max. 560/760 px, 10 px Rand, 6 px Abstand)
   const chooseIcon = Math.round(((Math.min(vw, big ? 760 : 560) - 20 - 6 * 6) / 7) * 0.82);
   // gelegte Karten (Stich): iPhone 1,08×, iPad hoch 1,05×, iPad quer 0,86× der Handkartenbreite
@@ -2900,7 +2900,7 @@ function JassApp() {
       {/* Status + Hand */}
       <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) * 0.35 + 2px)", paddingTop: 18 }}>
-        <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff + (fan ? 36 : 0), margin: "0 auto" }}>
+        <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff + (fan ? 48 : 0), margin: "0 auto" }}>
           {handRows.flatMap((row, ri) => row.map((c, i) => [c, i, ri, row.length])).map(([c, i, ri, n]) => (
             <div key={c}
               onPointerDown={(e) => dragStart(e, c)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={() => setDrag(null)}
