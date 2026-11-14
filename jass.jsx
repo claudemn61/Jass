@@ -2724,7 +2724,15 @@ function JassApp() {
     const isDecider = r.trump != null && r.decider === p;
     const star = isDecider ? (r.pushed ? " ☆" : " ★") : "";
     // Trumpf-Symbol beim Ansager (ausserhalb der Namenskachel): Links/Rechts über dem Namen, Partner daneben
-    const tIcon = trumpAtSeat && isDecider ? <ModeIcon t={r.trump} deck={deck} size={Math.round(30 * uiK)} /> : null;
+    const tIcon = trumpAtSeat && isDecider ? <ModeIcon t={r.trump} deck={deck} size={Math.round(40 * uiK)} /> : null;
+    // Namenskachel bleibt immer an derselben Stelle: Trumpf darüber (Links/Rechts) bzw. links daneben (Partner), Weis unten bzw. rechts daneben (Partner)
+    const sideIcon = (p === 1 || p === 3) && tIcon ? <span style={{ position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)", marginBottom: 3, display: "flex" }}>{tIcon}</span> : null;
+    const partnerExtras = p === 2 ? (
+      <>
+        {tIcon && <span style={{ position: "absolute", right: "100%", top: "50%", transform: "translateY(-50%)", marginRight: 8, display: "flex" }}>{tIcon}</span>}
+        <div style={{ position: "absolute", left: "100%", top: 0, marginLeft: 8 }}><WeisChips p={p} align="flex-start" /></div>
+      </>
+    ) : null;
     return (
       <div style={{ position: "absolute", ...style, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
         {big ? (
@@ -2735,30 +2743,30 @@ function JassApp() {
               <CardFan cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
             </div>
             {/* Name unter den Karten (mit Stern bei Ansage) */}
-            {(p === 1 || p === 3) && tIcon}
             <div style={{ position: "relative" }}>
+            {sideIcon}
             <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
               border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
               boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>{NAMES[p]}{star}</div>
-            {p === 2 && tIcon && <span style={{ position: "absolute", left: "100%", top: "50%", transform: "translateY(-50%)", marginLeft: 6, display: "flex" }}>{tIcon}</span>}
+            {partnerExtras}
             </div>
           </>
         ) : (
           // iPhone: nur der Name
           <>
-          {(p === 1 || p === 3) && tIcon}
           <div style={{ position: "relative" }}>
+          {sideIcon}
           <div style={{ padding: 4 * uiK + "px " + 10 * uiK + "px", borderRadius: 20, background: active ? C.gold : "rgba(0,0,0,0.3)", color: active ? "#1a1200" : C.text, fontSize: 13 * uiK, fontWeight: 700,
             border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
             boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>
             {NAMES[p]}{star}
           </div>
-          {p === 2 && tIcon && <span style={{ position: "absolute", left: "100%", top: "50%", transform: "translateY(-50%)", marginLeft: 6, display: "flex" }}>{tIcon}</span>}
+          {partnerExtras}
           </div>
           </>
         )}
         {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} />}
-        <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />
+        {p !== 2 && <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />}
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>
     );
@@ -2776,7 +2784,7 @@ function JassApp() {
             <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
               {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
                 <div key="t" style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 12px", borderRadius: 20, fontSize: 14, visibility: r.trump != null && trumpTop ? "visible" : "hidden" }}>
-                  {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={38} />}
+                  {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={46} />}
                 </div>
               ) : (
                 <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
@@ -2790,8 +2798,8 @@ function JassApp() {
           // iPhone: «Wir» links, Trumpf in der Mitte, «Gegner» rechts
           <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }}>
             {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
-              <div key="t" title={r.trump != null ? modeName(r.trump, deck) : ""} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20, visibility: r.trump != null && trumpTop ? "visible" : "hidden", minWidth: 46, minHeight: 46, boxSizing: "border-box", justifyContent: "center" }}>
-                {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={34} />}
+              <div key="t" title={r.trump != null ? modeName(r.trump, deck) : ""} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20, visibility: r.trump != null && trumpTop ? "visible" : "hidden", minWidth: 54, minHeight: 54, boxSizing: "border-box", justifyContent: "center" }}>
+                {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={42} />}
               </div>
             ) : (
               <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 4, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
@@ -2819,7 +2827,6 @@ function JassApp() {
           <TafelBadge onClick={() => setModal("tafel")} />
         </div>
         {wonBy[0] > 0 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)" }}><TrickPile n={wonBy[0]} w={pileW} /></div>}
-        {(announcing || weisOf(0).length > 0) && <div style={{ position: "absolute", bottom: wonBy[0] > 0 ? 10 + pileW + 22 : 10, left: "50%", transform: "translateX(-50%)" }}><WeisChips p={0} /></div>}
         <Seat p={3} style={{ top: "42%", left: 8 }} />
         <Seat p={1} style={{ top: "42%", right: 8 }} />
         <div style={{ position: "absolute", left: "50%", top: big && vw > vh ? "57%" : "50%", width: 0, height: 0 }}>
@@ -2878,7 +2885,13 @@ function JassApp() {
       )}
 
       {/* Status + Hand */}
-      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{trumpAtSeat && r.trump != null && r.decider === 0 && <span style={{ display: "inline-block", verticalAlign: "middle", marginRight: 8 }}><ModeIcon t={r.trump} deck={deck} size={Math.round(26 * uiK)} /></span>}{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
+      <div style={{ position: "relative", textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>
+        <span style={{ position: "relative", display: "inline-block" }}>
+          {trumpAtSeat && r.trump != null && r.decider === 0 && <span style={{ position: "absolute", right: "100%", top: "50%", transform: "translateY(-50%)", marginRight: 10, display: "flex" }}><ModeIcon t={r.trump} deck={deck} size={Math.round(40 * uiK)} /></span>}
+          {r.phase === "choose" && r.decider === 0 && !deal ? "" : status}
+        </span>
+        {(announcing || weisOf(0).length > 0) && <div style={{ position: "absolute", right: 10, bottom: 0 }}><WeisChips p={0} align="flex-end" /></div>}
+      </div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff, margin: "0 auto" }}>
           {handRows.flatMap((row, ri) => row.map((c, i) => [c, i, ri, row.length])).map(([c, i, ri, n]) => (
