@@ -2823,10 +2823,18 @@ function JassApp() {
           <button onClick={(ev) => { ev.stopPropagation(); setReplay(true); }} title="Letzte Runde nochmals abspielen"
             style={{ position: "absolute", top: 10, left: 8, zIndex: 5, zoom: uiK, ...btn(false), padding: "5px 9px", fontSize: 12 }}>↺ Replay</button>
         )}
-        <div style={{ position: "absolute", top: 10, right: 8, zIndex: 5, zoom: uiK }} onClick={(ev) => ev.stopPropagation()}>
+        <div style={{ position: "absolute", top: 10, right: 8, zIndex: 5, zoom: uiK, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }} onClick={(ev) => ev.stopPropagation()}>
           <TafelBadge onClick={() => setModal("tafel")} />
+          {r.lastTrick && r.phase !== "roundEnd" && (
+            <button onClick={(ev) => { ev.stopPropagation(); setModal("last"); }} style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Letzter Stich</button>
+          )}
         </div>
-        {wonBy[0] > 0 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)" }}><TrickPile n={wonBy[0]} w={pileW} /></div>}
+        {/* Unten Mitte: gesammelte Stiche; links davon mein Trumpf (wenn ich ihn gewählt habe), rechts davon mein Weis */}
+        <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", minWidth: pileW, minHeight: Math.round(pileW * 1.4) }}>
+          {wonBy[0] > 0 && <TrickPile n={wonBy[0]} w={pileW} />}
+          {trumpAtSeat && r.trump != null && r.decider === 0 && <span style={{ position: "absolute", right: "100%", bottom: 0, marginRight: 10, display: "flex" }}><ModeIcon t={r.trump} deck={deck} size={Math.round(40 * uiK)} /></span>}
+          {(announcing || weisOf(0).length > 0) && <div style={{ position: "absolute", left: "100%", bottom: 0, marginLeft: 20 }}><WeisChips p={0} align="flex-start" /></div>}
+        </div>
         <Seat p={3} style={{ top: "42%", left: 8 }} />
         <Seat p={1} style={{ top: "42%", right: 8 }} />
         <div style={{ position: "absolute", left: "50%", top: big && vw > vh ? "57%" : "50%", width: 0, height: 0 }}>
@@ -2843,14 +2851,11 @@ function JassApp() {
           Runde {r.no}{r.trump != null ? " · Stiche " + r.tricks[0] + ":" + r.tricks[1] : ""}
           {r.trump != null && <div>Trumpf: {NAMES[r.decider]} {r.pushed ? "☆" : "★"}</div>}
         </div>
-        {/* Knöpfe unten rechts übereinander: «Bedanken» über «Letzter Stich» (kollidiert so nicht mit dem Weis in der Mitte) */}
+        {/* Knöpfe unten rechts übereinander: «Bedanken» (Letzter Stich steht oben unter der Tafel) */}
         <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", flexDirection: big ? "row" : "column", alignItems: big ? "center" : "flex-end", gap: 6, zoom: uiK }}>
           {THANK === "knopf" && (r.phase === "play" || r.phase === "trickDone") && !game.over && (
             <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm("Bedanken? Haben wir die " + game.target + " Punkte erreicht? Wenn nicht, gewinnen die Gegner.")) bedanken(); }}
               style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
-          )}
-          {r.lastTrick && r.phase !== "roundEnd" && (
-            <button onClick={(ev) => { ev.stopPropagation(); setModal("last"); }} style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Letzter Stich</button>
           )}
         </div>
         {toast && (
@@ -2885,13 +2890,7 @@ function JassApp() {
       )}
 
       {/* Status + Hand */}
-      <div style={{ position: "relative", textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>
-        <span style={{ position: "relative", display: "inline-block" }}>
-          {trumpAtSeat && r.trump != null && r.decider === 0 && <span style={{ position: "absolute", right: "100%", top: "50%", transform: "translateY(-50%)", marginRight: 10, display: "flex" }}><ModeIcon t={r.trump} deck={deck} size={Math.round(40 * uiK)} /></span>}
-          {r.phase === "choose" && r.decider === 0 && !deal ? "" : status}
-        </span>
-        {(announcing || weisOf(0).length > 0) && <div style={{ position: "absolute", right: 10, bottom: 0 }}><WeisChips p={0} align="flex-end" /></div>}
-      </div>
+      <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)", paddingTop: 18 }}>
         <div data-hand="1" style={{ position: "relative", width: handW, height: Math.round(cwH * 1.5) + (handRows.length - 1) * rowOff, margin: "0 auto" }}>
           {handRows.flatMap((row, ri) => row.map((c, i) => [c, i, ri, row.length])).map(([c, i, ri, n]) => (
