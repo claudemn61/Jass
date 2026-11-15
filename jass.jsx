@@ -2798,8 +2798,8 @@ function JassApp() {
             // iPad: «x & y» links, Trumpf in der Mitte, Gegner rechts
             <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
               {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
-                <div key="t" style={{ display: trumpTop ? "flex" : "none", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 12px", borderRadius: 20, fontSize: 14, visibility: r.trump != null && trumpTop ? "visible" : "hidden" }}>
-                  {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={46} />}
+                <div key="t" style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.3)", padding: "4px 12px", borderRadius: 20, fontSize: 14, visibility: r.trump != null && trumpTop ? "visible" : "hidden" }}>
+                  {r.trump != null && trumpTop && <ModeIcon t={r.trump} deck={deck} size={46} />}
                 </div>
               ) : (
                 <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
@@ -2813,8 +2813,8 @@ function JassApp() {
           // iPhone: «Wir» links, Trumpf in der Mitte, «Gegner» rechts
           <div onClick={() => setModal("tafel")} style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }}>
             {[0, "trumpf", 1].map((t) => t === "trumpf" ? (
-              <div key="t" title={r.trump != null ? modeName(r.trump, deck) : ""} style={{ display: trumpTop ? "flex" : "none", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: 5, borderRadius: 20, visibility: r.trump != null && trumpTop ? "visible" : "hidden", minWidth: 54, minHeight: 54, boxSizing: "border-box", justifyContent: "center" }}>
-                {r.trump != null && <ModeIcon t={r.trump} deck={deck} size={42} />}
+              <div key="t" title={r.trump != null ? modeName(r.trump, deck) : ""} style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: trumpTop ? 5 : 0, borderRadius: 20, visibility: r.trump != null && trumpTop ? "visible" : "hidden", minWidth: trumpTop ? 54 : 0, minHeight: trumpTop ? 54 : 0, boxSizing: "border-box", justifyContent: "center" }}>
+                {r.trump != null && trumpTop && <ModeIcon t={r.trump} deck={deck} size={42} />}
               </div>
             ) : (
               <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 4, justifyContent: t === 0 ? "flex-start" : "flex-end", overflow: "hidden" }}>
@@ -2827,7 +2827,7 @@ function JassApp() {
           </div>
           )}
           {/* gleich breiter, unsichtbarer Platzhalter rechts: hält den Trumpf in der Bildschirmmitte */}
-          {!big && <div aria-hidden="true" style={{ fontSize: 22, padding: "0 6px", visibility: "hidden" }}>☰</div>}
+          {!big && trumpTop && <div aria-hidden="true" style={{ fontSize: 22, padding: "0 6px", visibility: "hidden" }}>☰</div>}
         </div>
       </div>
 
