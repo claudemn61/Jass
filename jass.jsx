@@ -556,7 +556,7 @@ function SuitIcon({ s, deck, size }) {
   if (deck === "fr") {
     const sym = ["♦", "♥", "♠", "♣"][s];
     // weisser Hintergrund wie bei den Symbolen der CH-Karten: überall gut lesbar
-    return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: size * 0.18, background: "#fbfaf4", color: s < 2 ? "#d4141c" : "#111", fontSize: size * 1.0, lineHeight: 1, fontFamily: "Georgia, serif", boxSizing: "border-box", overflow: "hidden" }}>{sym}</span>;
+    return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: size * 0.18, background: "#fbfaf4", color: s < 2 ? "#d4141c" : "#111", fontSize: size * 1.05, lineHeight: 1, fontFamily: "Georgia, serif", boxSizing: "border-box", overflow: "hidden" }}>{sym}</span>;
   }
   const st = { width: size, height: size, display: "block" };
   if (s === 0) return (
@@ -3100,7 +3100,7 @@ function JassApp() {
             {[3, 1, 0, 2, 4, 5].map((t) => (
               <button key={t} onClick={() => choose(game, t)} title={modeName(t, deck) + " ×" + E.multiplier(t, game.mult)} aria-label={modeName(t, deck)}
                 style={{ ...btn(false), padding: 0, aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <ModeIcon t={t} deck={deck} size={chooseIcon} />
+                <ModeIcon t={t} deck={deck} size={deck === "fr" && t < 4 ? Math.round(chooseIcon * 1.17) : chooseIcon} />
               </button>
             ))}
             <button onClick={() => !r.pushed && push(game)} disabled={r.pushed} title="Schieben" aria-label="Schieben"
