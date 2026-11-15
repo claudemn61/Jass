@@ -2791,8 +2791,8 @@ function JassApp() {
     <div style={{ height: "100%", background: C.felt2, position: "relative", zIndex: 0, color: C.text, textShadow: "0 1px 3px rgba(0,0,0,0.85)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <FeltBackground />
       {/* Kopfzeile */}
-      <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + " + (trumpTop ? 10 : 2) + "px)", paddingBottom: trumpTop ? 4 : 1, background: "rgba(0,0,0,0.45)", borderBottom: "1px solid " + C.line }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: trumpTop ? "8px 10px" : "0 10px", maxWidth: MAXW, margin: "0 auto", boxSizing: "border-box", zoom: uiK }}>
+      <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + " + (trumpTop ? 10 : 12) + "px)", paddingBottom: trumpTop ? 4 : 3, background: "rgba(0,0,0,0.45)", borderBottom: "1px solid " + C.line }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: trumpTop ? "8px 10px" : "2px 10px", maxWidth: MAXW, margin: "0 auto", boxSizing: "border-box", zoom: uiK }}>
           <button onClick={() => setMenu(true)} style={{ background: "none", border: "none", color: C.text, fontSize: 22, cursor: "pointer", padding: "0 6px" }}>☰</button>
           {big ? (
             // iPad: «x & y» links, Trumpf in der Mitte, Gegner rechts
