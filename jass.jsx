@@ -3100,7 +3100,7 @@ function JassApp() {
             {[3, 1, 0, 2, 4, 5].map((t) => (
               <button key={t} onClick={() => choose(game, t)} title={modeName(t, deck) + " ×" + E.multiplier(t, game.mult)} aria-label={modeName(t, deck)}
                 style={{ ...btn(false), padding: 0, aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <ModeIcon t={t} deck={deck} size={deck === "fr" && t < 4 ? Math.round(chooseIcon * 1.17) : chooseIcon} />
+                <ModeIcon t={t} deck={deck} size={chooseIcon} />
               </button>
             ))}
             <button onClick={() => !r.pushed && push(game)} disabled={r.pushed} title="Schieben" aria-label="Schieben"
