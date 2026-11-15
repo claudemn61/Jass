@@ -604,6 +604,17 @@ function ModeIcon({ t, deck, size }) {
 
 // Dateinamen der mitgelieferten französischen Karten: Rang + Farbe (Ecken = D, Herz = H, Schaufel = S, Kreuz = C)
 const FR_RANK = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"], FR_SUIT = ["D", "H", "S", "C"];
+// Mitgelieferte Karten im Voraus laden und dekodieren (sonst erscheinen sie beim ersten Spielen verzögert)
+const FR_PRELOAD = [];
+function preloadFr() {
+  if (FR_PRELOAD.length) return;
+  FR_RANK.forEach((rk) => FR_SUIT.forEach((su) => {
+    const im = new Image();
+    im.src = "cards-fr/" + rk + su + ".webp";
+    if (im.decode) im.decode().catch(() => {});
+    FR_PRELOAD.push(im); // Referenz halten, damit die Bilder im Speicher bleiben
+  }));
+}
 function Card({ id, deck, w, onClick, dim, raised, trump }) {
   const s = E.suitOf(id), r = E.rankOf(id);
   const h = Math.round(w * 1.5);
@@ -2421,6 +2432,7 @@ function JassApp() {
   const vw = useWidth();
   const vh = useHeight();
   const deck = settings.deck;
+  useEffect(() => { if (deck === "fr") preloadFr(); }, [deck]);
   THANK = online ? "aus" : settings.thank || "knopf";
   WEISASK = online ? false : !!settings.weisAsk;
   // Sitz → Name: über seatPerm (Zuordnung dieses Spiels) aus der Namensliste; leerer Name = Standardname des Sitzes
