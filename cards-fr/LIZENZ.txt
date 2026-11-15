@@ -2,3 +2,4 @@ Französische Karten (36 Blatt, 6 bis Ass)
 Quelle: «Vector Playing Cards» von Byron Knoll (code.google.com/archive/p/vector-playing-cards),
 SVG-Sammlung von Peter Tripp (github.com/notpeter/Vector-Playing-Cards).
 Lizenz: gemeinfrei (Public Domain), alternativ WTFPL. Hier als WebP (300 px breit) umgewandelt.
+Hinweis: Bei Dame und Bube wurden die Eckbuchstaben Q und J in der SVG-Quelle zu D und B geändert (Schweizer Beschriftung).

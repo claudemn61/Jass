@@ -556,7 +556,7 @@ function SuitIcon({ s, deck, size }) {
   if (deck === "fr") {
     const sym = ["♦", "♥", "♠", "♣"][s];
     // weisser Hintergrund wie bei den Symbolen der CH-Karten: überall gut lesbar
-    return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: size * 0.18, background: "#fbfaf4", color: s < 2 ? "#d4141c" : "#111", fontSize: size * 0.8, lineHeight: 1, fontFamily: "Georgia, serif", boxSizing: "border-box" }}>{sym}</span>;
+    return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: size * 0.18, background: "#fbfaf4", color: s < 2 ? "#d4141c" : "#111", fontSize: size * 1.0, lineHeight: 1, fontFamily: "Georgia, serif", boxSizing: "border-box", overflow: "hidden" }}>{sym}</span>;
   }
   const st = { width: size, height: size, display: "block" };
   if (s === 0) return (
