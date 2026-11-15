@@ -57,6 +57,13 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
 - Einstellung `thank` (Bedanken): `knopf` | `auto` | `aus`, Modulvariable `THANK` in `jass.jsx`.
 - Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
   Computer erhalten diese Information nicht.
+- Online-Spiel (`online.js`, `window.JassOnline`; Test: `node tests/online.js`): Host-autoritativ. Der Host führt das Spiel wie bisher
+  (Computer füllen freie Sitze, `humanSeat()` in `jass.jsx`) und sendet jedem Gast bei jeder Änderung `viewFor(game, seat)`:
+  alle Sitz-Felder auf den Gast gedreht (Gast = Sitz 0), Teams bei ungeradem Sitz vertauscht, fremde Hände mit -1 maskiert.
+  Gäste senden nur Aktionen (`play`/`choose`/`push`), der Host prüft sie mit `checkAction`. Transport: PeerJS (WebRTC,
+  `bea-jass-<CODE>`, Skript lazy von jsdelivr) – austauschbar, `window.JASS_NET = "mock"` = BroadcastChannel für lokale Tests
+  (zwei Tabs im selben Browser). Online abgeschaltet: Bedanken (`THANK = "aus"`), Weis-Rückfrage, `claimOn`, Austeil-Animation,
+  Tempo «Manuell». Gäste speichern den fremden Spielstand nicht (`save("game")` übersprungen).
 - Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB
   `jass-bilder`, niemals ins Repo (urheberrechtlich geschützt, Repo ist öffentlich).

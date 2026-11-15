@@ -4,9 +4,16 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "2.2.2";
+const APP_VERSION = "3.0.0";
 
 const CHANGELOG = [
+  {
+    version: "3.0.0",
+    changes: [
+      "Online spielen: auf dem Startbildschirm «Online» – ein Spieler eröffnet einen Tisch und teilt den 5-stelligen Code, 1 bis 3 weitere Spieler treten bei (direkte Verbindung der Geräte, kein eigener Server). Freie Plätze spielt der Computer. Der Host führt das Spiel, jeder sieht seinen Sitz unten",
+      "Online ohne Bedanken, Weis-Rückfrage, «Alle Böcke auflegen», Austeilen-Animation und Tempo «Manuell»; die nächste Runde startet der Host",
+    ],
+  },
   {
     version: "2.2.2",
     changes: [
@@ -1730,6 +1737,8 @@ function RulesModal({ onClose, deck }) {
       {p("Weis werden automatisch erkannt. Im ersten Stich erscheint bei jedem Spieler mit seiner ersten Karte nur die Weishöhe als weisse Zahl (wie am Tisch: nur der höchste Wert wird angesagt); nach dem ersten Stich werden sie gezeigt (die gültigen des Siegerteams mit Farbe und Karte, die unterlegenen Ansagen der anderen nur als ausgegraute Zahl): Dreiblatt 20, Vierblatt 50, Fünfblatt 100, je weiteres Blatt +50; vier Gleiche 100 (alle Kartenwerte von 6 bis Ass, auch bei Obenabe und Undenufe), vier Nell 150, vier Under 200; ein Sechsblatt 150, Siebenblatt 200, Achtblatt 250, Neunblatt 300. Kreuzweise (eine Karte in zwei Weisen) sind gültig. Nur das Team mit dem höchsten Weis schreibt – dafür alle seine Weise. Bei gleichhohen Weisen gilt der Reihe nach: Eine Reihenfolge geht vor vier Gleichen; die höhere Karte des Weis (bei Undenufe die tiefste); bei gleicher höchster Karte die in der Trumpffarbe; sonst, wer zuerst an der Reihe ist (Vorhand). Ein geschriebener Weis bleibt auch bei einem Match der Gegner bestehen. König und Ober im Trumpf (Stöck) geben 20 Punkte.")}
       {h("Multiplikator & Ziel")}
       {p("Bei gestaffelter Zählung zählen " + S[3] + " und " + S[1] + " einfach, " + S[0] + " und " + S[2] + " doppelt, Obenabe und Undenufe dreifach (inkl. Weis und Stöck). Wer zuerst die Zielpunkte erreicht, gewinnt – gezählt wird in der Reihenfolge Stöck, Weis, Stich. Wer das Ziel mitten in der Runde erreicht, kann sich bedanken: für dein Team mit dem Knopf «Bedanken» (gezählt wird, was schon gutgeschrieben ist: Stöck, Weis, eingesammelte Stiche). Stimmt es nicht, gewinnen die Gegner. Die Gegner bedanken sich automatisch. In den Settings lässt sich «Bedanken» auch auf «Automatisch» (für beide Teams, ohne Knopf) oder «Nicht möglich» (nur Abrechnung am Rundenende) stellen. Spätestens am Rundenende wird abgerechnet.")}
+      {h("Online spielen")}
+      {p("Startbildschirm → «Online spielen». Ein Spieler (Host) eröffnet einen Tisch und gibt den 5-stelligen Code weiter; bis zu drei Mitspieler treten mit dem Code bei (Partner sitzt gegenüber, dann rechts und links). Freie Plätze spielt der Computer. Die Geräte verbinden sich direkt (WebRTC); nur der Verbindungsaufbau läuft über einen öffentlichen Vermittlungsdienst (PeerJS), die Spieldaten nicht. Der Host führt das Spiel und startet jede neue Runde; jeder sieht seinen Sitz unten. Die Hände der anderen werden nicht übertragen. Online gibt es kein Bedanken, keine Weis-Rückfrage, kein automatisches Auflegen aller Böcke, keine Austeil-Animation und kein Tempo «Manuell». Verlässt ein Gast den Tisch, übernimmt der Computer seinen Platz. Schliesst der Host den Tisch, ist das Spiel für alle beendet.")}
       {h("Offene Karten (Lernmodus)")}
       {p("In den Settings lassen sich die Karten der Mitspieler offen anzeigen. Sie liegen klein bei ihrem Platz. Nur du siehst sie – die Computer spielen weiterhin nur mit ihren eigenen Karten. Gut zum Üben und um nachzuvollziehen, warum jemand welche Karte spielt.")}
       {h("Eigene Bilder")}
@@ -2168,7 +2177,7 @@ function ClaimReportModal({ rep, deck, onClose }) {
   );
 }
 
-function RoundEndModal({ game, deck, serie, onNext, onSerieEnd, onTafel, onClose, onClaim }) {
+function RoundEndModal({ game, deck, serie, waiting, onNext, onSerieEnd, onTafel, onClose, onClaim }) {
   const r = game.round, res = r.result;
   const row = (label, a, b, bold) => (
     <tr style={{ borderTop: "1px solid " + C.line, fontWeight: bold ? 800 : 400 }}>
@@ -2211,10 +2220,11 @@ function RoundEndModal({ game, deck, serie, onNext, onSerieEnd, onTafel, onClose
         <div style={{ width: 92, flexShrink: 0 }}><TafelVorderseite game={game} pad={5} /></div>
         <div style={{ fontSize: 13, color: C.dim }}>Jasstafel ansehen ›</div>
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+      {waiting && <div style={{ marginTop: 16, textAlign: "center", color: C.dim, fontSize: 14 }}>Der Host startet {over ? "das nächste Spiel" : "die nächste Runde"} …</div>}
+      {!waiting && <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <button onClick={onNext} style={{ ...btn(true), flex: 1 }}>{!over ? "Nächste Runde" : serie ? "Serie fortsetzen" : "Neues Spiel"}</button>
         {over && serie && <button onClick={onSerieEnd} style={{ ...btn(false), flex: 1 }}>Serie beenden</button>}
-      </div>
+      </div>}
     </Modal>
   );
 }
@@ -2262,6 +2272,54 @@ function SerieModal({ serie, striche, onDone, onClose }) {
   );
 }
 
+// Online-Dialog: Tisch eröffnen / beitreten / Warteraum
+function OnlineModal({ online, msg, names, defaultName, onOpen, onJoin, onStart, onLeave, onClose }) {
+  const [name, setName] = useState(defaultName || "");
+  const [code, setCode] = useState("");
+  const inp = { width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: "1px solid " + C.line, background: "rgba(0,0,0,0.3)", color: C.text, fontSize: 16, fontFamily: "inherit", WebkitUserSelect: "text", userSelect: "text" };
+  const lab = { fontSize: 12, color: C.dim, margin: "10px 0 4px" };
+  const seats = ["Du", "Rechts", "Partner", "Links"];
+  const list = names ? (
+    <div style={{ margin: "10px 0", fontSize: 14 }}>
+      {[2, 1, 3, 0].map((q) => <div key={q} style={{ padding: "3px 0", color: C.text }}>{seats[q] === "Du" ? "Host" : seats[q]}: <b>{names[q]}</b></div>)}
+    </div>
+  ) : null;
+  return (
+    <Modal title="Online spielen" onClose={onClose}>
+      {!online && (
+        <div>
+          <div style={lab}>Dein Name am Tisch</div>
+          <input value={name} maxLength={14} onChange={(e) => setName(e.target.value)} placeholder="Name" style={inp} />
+          <button onClick={() => onOpen(name)} style={{ ...btn(true), width: "100%", marginTop: 14 }}>Tisch eröffnen</button>
+          <div style={{ ...lab, marginTop: 18 }}>Oder einem Tisch beitreten – Code vom Host</div>
+          <input value={code} maxLength={5} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="CODE" style={{ ...inp, letterSpacing: 4, textAlign: "center", textTransform: "uppercase" }} />
+          <button disabled={code.trim().length < 5} onClick={() => onJoin(code, name)} style={{ ...btn(false), width: "100%", marginTop: 10, opacity: code.trim().length < 5 ? 0.4 : 1 }}>Beitreten</button>
+          <div style={{ fontSize: 12, color: C.dim, marginTop: 14, lineHeight: 1.5 }}>Direkte Verbindung der Geräte, kein Konto nötig. Freie Plätze spielt der Computer. Nicht alle Netze erlauben die Verbindung (z.B. manche Firmen- oder Mobilnetze).</div>
+        </div>
+      )}
+      {online && online.role === "host" && (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: C.dim }}>Tischcode – an die Mitspieler weitergeben</div>
+          <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: 8, color: C.gold, margin: "6px 0 2px" }}>{online.code}</div>
+          <div style={{ textAlign: "left" }}>{list}</div>
+          <div style={{ fontSize: 12, color: C.dim, marginBottom: 12 }}>{Object.keys(online.guests).length ? "Freie Plätze spielt der Computer." : "Warten auf Mitspieler …"}</div>
+          <button disabled={!Object.keys(online.guests).length} onClick={onStart} style={{ ...btn(true), width: "100%", opacity: Object.keys(online.guests).length ? 1 : 0.4 }}>Spiel starten</button>
+          <button onClick={onLeave} style={{ ...btn(false), width: "100%", marginTop: 8 }}>Tisch schliessen</button>
+        </div>
+      )}
+      {online && online.role === "guest" && (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: C.dim }}>Tisch {online.code}</div>
+          <div style={{ fontSize: 16, margin: "10px 0" }}>{online.seat == null ? "Verbinde …" : "Verbunden – warten, bis der Host das Spiel startet …"}</div>
+          <div style={{ textAlign: "left" }}>{list}</div>
+          <button onClick={onLeave} style={{ ...btn(false), width: "100%", marginTop: 8 }}>Verlassen</button>
+        </div>
+      )}
+      {msg && <div style={{ fontSize: 13, color: C.gold, marginTop: 12, textAlign: "center" }}>{msg}</div>}
+    </Modal>
+  );
+}
+
 function Menu({ onClose, items }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 40 }}>
@@ -2279,6 +2337,16 @@ function JassApp() {
   const [settings, setSettingsRaw] = useState(() => ({ ...DEFAULT_SETTINGS, ...load("settings", {}) }));
   const [game, setGame] = useState(() => load("game", null));
   const [home, setHome] = useState(true);
+  // ── Online-Spiel (Details: online.js) ──
+  // Host: { role: "host", code, hostName, guests: { id: { seat, name } }, started }
+  // Gast: { role: "guest", code, seat, names, started }
+  const [online, setOnline] = useState(null);
+  const onlineRef = useRef(null);
+  onlineRef.current = online;
+  const netRef = useRef(null);
+  const [onlineMsg, setOnlineMsg] = useState(null); // Fehler/Hinweis im Online-Dialog
+  const isHost = !!online && online.role === "host";
+  const isGuest = !!online && online.role === "guest";
   const [stats, setStats] = useState(() => ({ played: 0, won: 0, rounds: 0, matches: 0, ...load("stats", {}) }));
   const [modal, setModal] = useState(null);
   const [menu, setMenu] = useState(false);
@@ -2300,7 +2368,7 @@ function JassApp() {
   // dran war); ausgeteilt wird reihum ab dem ersten Ansager. Einstellung «Austeilen».
   const beginDeal = (ng) => {
     const mode = settings.dealMode || "geber";
-    if (mode === "aus") return;
+    if (mode === "aus" || onlineRef.current) return; // online: ohne Animation
     const no = ng.round.no, first = ng.round.chooser;
     const key = Date.now();
     const perm = [...Array(9).keys()].sort((a, b) => Math.sin((a + 1) * (no + 3) * 12.9898) - Math.sin((b + 1) * (no + 3) * 12.9898));
@@ -2338,18 +2406,22 @@ function JassApp() {
   const vw = useWidth();
   const vh = useHeight();
   const deck = settings.deck;
-  THANK = settings.thank || "knopf";
-  WEISASK = !!settings.weisAsk;
+  THANK = online ? "aus" : settings.thank || "knopf";
+  WEISASK = online ? false : !!settings.weisAsk;
   // Sitz → Name: über seatPerm (Zuordnung dieses Spiels) aus der Namensliste; leerer Name = Standardname des Sitzes
   const seatPerm = (game && game.seatPerm) || [0, 1, 2, 3];
-  NAMES = [0, 1, 2, 3].map((i) => ((settings.names && settings.names[seatPerm[i]]) || "").trim() || DEFAULT_NAMES[i]);
+  // Online: Gast sieht die Namen aus Sicht seines Sitzes, der Host die Namen der Mitspieler am Tisch
+  const onlineNamesFor = (o) => [0, 1, 2, 3].map((i) => (i === 0 ? (o.hostName || "Host") : ((Object.values(o.guests).find((x) => x.seat === i) || {}).name || ((settings.names && settings.names[i]) || "").trim() || DEFAULT_NAMES[i])));
+  NAMES = isGuest && game && game.onlineNames ? game.onlineNames
+    : isHost ? onlineNamesFor(online)
+    : [0, 1, 2, 3].map((i) => ((settings.names && settings.names[seatPerm[i]]) || "").trim() || DEFAULT_NAMES[i]);
   const sp = SPEEDS[settings.speed] || SPEEDS.normal;
 
   const setSettings = (s) => { setSettingsRaw(s); save("settings", s); };
   const imgCtx = { on: settings.customImgs, index: settings.imgIndex, map: imgs };
   const wrap = (el) => <CardImgCtx.Provider value={imgCtx}>{el}</CardImgCtx.Provider>;
   const imgModal = modal === "images" && <CardImagesModal deck={deck} imgs={imgs} reload={reloadImgs} settings={settings} setSettings={setSettings} onClose={() => setModal("settings")} />;
-  useEffect(() => { save("game", game); }, [game]);
+  useEffect(() => { if (!isGuest) save("game", game); }, [game]); // Gast: fremden Spielstand nicht als eigenen speichern
   useEffect(() => { save("stats", stats); }, [stats]);
   const [striche, setStriche] = useState(() => ({ match: [0, 0], sieg: [0, 0], berg: [0, 0], ...load("striche", {}) }));
   useEffect(() => { save("striche", striche); }, [striche]);
@@ -2364,15 +2436,18 @@ function JassApp() {
 
   // Zustandsübergänge mit Ansagen
   const choose = (g, t) => {
+    if (isGuest) { netRef.current.send({ t: "choose", m: t }); return; }
     const r = g.round;
     say(NAMES[r.decider] + verb(r.decider, " wählst ", " wählt ") + modeName(t, deck));
     setGame(doChoose(g, t));
   };
   const push = (g) => {
+    if (isGuest) { netRef.current.send({ t: "push" }); return; }
     say(NAMES[g.round.chooser] + verb(g.round.chooser, " schiebst", " schiebt"));
     setGame(doPush(g));
   };
   const play = (g, p, c) => {
+    if (isGuest) { netRef.current.send({ t: "play", c }); setSelected(null); return; }
     // Nur noch Böcke beim Ausspielen: alle auf einmal auflegen
     if (g.round.phase === "play" && claimOn && canClaim(g.round, p)) {
       say(NAMES[p] + verb(p, " legst alle Böcke auf", " legt alle Böcke auf") + " – alle werfen ihre Karten, der ganze Haufen geht an " + teamAn(E.team(p)) + ".", 3500);
@@ -2432,14 +2507,16 @@ function JassApp() {
   };
 
   // Computer-Spieler und Einsammeln: nächster Schritt (null = nichts zu tun)
+  // Menschliche Sitze: du (0) und – online als Host – die verbundenen Gäste
+  const humanSeat = (q) => q === 0 || (isHost && Object.values(online.guests).some((x) => x.seat === q));
   const botStep = (g) => {
     const r = g.round;
-    if (r.phase === "choose" && r.decider !== 0) return () => {
+    if (r.phase === "choose" && !humanSeat(r.decider)) return () => {
       const strong = settings.level !== "normal";
       const d = strong ? E.botChooseTrumpSmart(r.hands[r.decider], !r.pushed, r.decider, g.mult, { scores: g.scores, target: g.target }) : E.botChooseTrump(r.hands[r.decider], !r.pushed, g.mult);
       if (d === "push") push(g); else choose(g, d);
     };
-    if (r.phase === "play" && r.turn !== 0) return () => {
+    if (r.phase === "play" && !humanSeat(r.turn)) return () => {
       const m = E.multiplier(r.trump, g.mult);
       const st = [0, 0]; if (r.stoeck != null && r.stoeckDone) st[E.team(r.stoeck)] = 20;
       const wp = r.trickNo >= 1 && r.weis ? r.weis.pts : [0, 0];
@@ -2452,11 +2529,11 @@ function JassApp() {
     if (r.phase === "trickDone") return () => sweepCollect(g);
     return null;
   };
-  const manual = settings.speed === "manuell";
-  const claimOn = settings.claimAll !== false; // Einstellung «Bock-Karten spielen»
+  const manual = settings.speed === "manuell" && !online;
+  const claimOn = settings.claimAll !== false && !online; // Einstellung «Bock-Karten spielen»
   // Automatisch mit Verzögerung; im Modus «Manuell» erst beim Tippen auf den Teppich
   useEffect(() => {
-    if (!game || !game.round || home || manual || replay || deal) return; // während Replay und Austeilen pausiert das Spiel
+    if (!game || !game.round || home || manual || replay || deal || isGuest) return; // während Replay und Austeilen pausiert das Spiel; Gäste: der Host spielt für die Computer
     const step = botStep(game);
     if (!step) return;
     const r = game.round;
@@ -2464,22 +2541,23 @@ function JassApp() {
     const delay = r.phase === "trickDone" ? sp.trick / 2 : r.phase === "choose" ? sp.bot * 1.4 : sp.bot;
     const timer = setTimeout(step, delay);
     return () => clearTimeout(timer);
-  }, [game, home, manual, replay, deal]);
+  }, [game, home, manual, replay, deal, online]);
 
   const [draw, setDraw] = useState(false); // «Wer spielt zusammen»: Ziehen läuft
   const startNew = (pre0) => {
     const pre = pre0 && pre0.seatPerm ? pre0 : null; // (als onClick-Handler kommt ein Ereignis an)
     setSelected(null); setModal(null); setEndHidden(false); setHome(false);
-    if (settings.teamDraw && !pre) { setDraw(true); return; }   // erst Karten ziehen
+    const st = isHost ? { ...settings, shuffleSeats: false, teamDraw: false } : settings; // online: feste Plätze
+    if (st.teamDraw && !pre) { setDraw(true); return; }   // erst Karten ziehen
     setDraw(false);
-    const ng = newGame(settings, pre); setGame(ng); beginDeal(ng);
+    const ng = newGame(st, pre); setGame(ng); beginDeal(ng);
     if (settings.shuffleSeats || pre) {
       // neue Mitspieler ansagen
       const nm = (i) => ((settings.names && settings.names[ng.seatPerm[i]]) || "").trim() || DEFAULT_NAMES[i];
       say("Neue Runde am Tisch – Partner: " + nm(2) + " · links: " + nm(3) + " · rechts: " + nm(1), 4500);
     }
   };
-  const goNextRound = () => { setEndHidden(false); if (game.over) neuesSpiel(true); else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
+  const goNextRound = () => { if (isGuest) return; setEndHidden(false); if (game.over) neuesSpiel(true); else { const ng = nextRound(game); setGame(ng); beginDeal(ng); } };
   const stricheLeer = () => ({ match: [0, 0], sieg: [0, 0], berg: [0, 0] });
   const hatStriche = () => ["match", "sieg", "berg"].some((k) => striche[k][0] || striche[k][1]);
   // Laufendes Spiel abbrechen (mit Rückfrage); true = weiter
@@ -2513,6 +2591,109 @@ function JassApp() {
   // Serie beenden: Striche und Serienverlauf löschen, zurück zum Startbildschirm
   const serieBeenden = () => { setStriche(stricheLeer()); setSerie([]); setModal(null); setHome(true); };
 
+  // ── Online: Tisch eröffnen / beitreten ──
+  const JO = window.JassOnline;
+  const sendLobby = (o) => {
+    const names = onlineNamesFor(o);
+    Object.keys(o.guests).forEach((id) => netRef.current && netRef.current.send(id, { t: "lobby", names }));
+  };
+  const leaveOnline = (informOthers) => {
+    const o = onlineRef.current, net = netRef.current;
+    if (net) {
+      if (informOthers && o && o.role === "host") Object.keys(o.guests).forEach((id) => net.send(id, { t: "closed" }));
+      setTimeout(() => net.close(), 150);
+    }
+    netRef.current = null; onlineRef.current = null;
+    setOnline(null);
+    if (o && o.role === "guest") setGame(load("game", null)); // eigenen Spielstand zurück
+    setHome(true); setModal(null); setMenu(false);
+  };
+  const hostOpen = async (hostName) => {
+    setOnlineMsg("Verbinde …");
+    try {
+      const net = await JO.transport().host();
+      netRef.current = net;
+      const o = { role: "host", code: net.code, hostName: (hostName || "").trim().slice(0, 14) || "Host", guests: {}, started: false };
+      onlineRef.current = o; setOnline(o); setOnlineMsg(null);
+      net.onMsg((id, m) => hostMsgRef.current(id, m));
+      net.onLeave((id) => hostLeaveRef.current(id));
+    } catch (e) { setOnlineMsg("Fehler: " + (e && e.message ? e.message : e)); }
+  };
+  const hostMsgRef = useRef(null), hostLeaveRef = useRef(null);
+  hostMsgRef.current = (id, m) => {
+    const o = onlineRef.current, net = netRef.current;
+    if (!o || o.role !== "host" || !net) return;
+    if (m.t === "hello") {
+      const known = o.guests[id];
+      if (known) { net.send(id, { t: "welcome", seat: known.seat }); return; }
+      const used = Object.values(o.guests).map((x) => x.seat);
+      const free = [2, 1, 3].find((q) => !used.includes(q));
+      if (o.started || free == null) { net.send(id, { t: "full" }); return; }
+      const name = String(m.name || "").trim().slice(0, 14) || DEFAULT_NAMES[free];
+      const no = { ...o, guests: { ...o.guests, [id]: { seat: free, name } } };
+      onlineRef.current = no; setOnline(no);
+      net.send(id, { t: "welcome", seat: free });
+      sendLobby(no);
+      return;
+    }
+    const gu = o.guests[id];
+    if (!gu) return;
+    const g = gameRef.current;
+    const why = JO.checkAction(g, gu.seat, m, E.legalCards);
+    if (why) { net.send(id, { t: "state", g: JO.viewFor(g, gu.seat, { names: onlineNamesFor(o) }) }); return; } // Gast neu abgleichen
+    if (m.t === "play") play(g, gu.seat, m.c);
+    else if (m.t === "choose") choose(g, m.m);
+    else if (m.t === "push") push(g);
+  };
+  hostLeaveRef.current = (id) => {
+    const o = onlineRef.current;
+    if (!o || o.role !== "host" || !o.guests[id]) return;
+    const { [id]: gone, ...rest } = o.guests;
+    const no = { ...o, guests: rest };
+    onlineRef.current = no; setOnline(no); // der Sitz wird wieder vom Computer gespielt
+    if (!no.started) sendLobby(no); else say(gone.name + " hat den Tisch verlassen – der Computer spielt weiter", 3500);
+  };
+  const hostStart = () => {
+    const o = onlineRef.current;
+    if (!o || o.role !== "host" || !Object.keys(o.guests).length) return;
+    const no = { ...o, started: true };
+    onlineRef.current = no; setOnline(no);
+    setSelected(null); setModal(null); setEndHidden(false); setHome(false); setDraw(false);
+    setGame(newGame({ ...settings, shuffleSeats: false, teamDraw: false }, null));
+  };
+  // Host: jede Änderung des Spiels an alle Gäste senden (je Gast aus dessen Sicht)
+  useEffect(() => {
+    if (!isHost || !online.started || !game || !netRef.current) return;
+    const names = onlineNamesFor(online);
+    Object.entries(online.guests).forEach(([id, gu]) => netRef.current.send(id, { t: "state", g: JO.viewFor(game, gu.seat, { names }) }));
+  }, [game, online]);
+  const guestJoin = async (code, name) => {
+    setOnlineMsg("Verbinde …");
+    try {
+      const net = await JO.transport().join(code);
+      netRef.current = net;
+      const o = { role: "guest", code: code.toUpperCase().trim(), seat: null, names: null, started: false };
+      onlineRef.current = o; setOnline(o); setOnlineMsg(null);
+      net.onMsg((m) => guestMsgRef.current(m));
+      net.onClose(() => guestClosedRef.current());
+      net.send({ t: "hello", name: (name || "").trim().slice(0, 14) });
+    } catch (e) { setOnlineMsg("Fehler: " + (e && e.message ? e.message : e)); }
+  };
+  const guestMsgRef = useRef(null), guestClosedRef = useRef(null);
+  guestMsgRef.current = (m) => {
+    const o = onlineRef.current;
+    if (!o || o.role !== "guest") return;
+    if (m.t === "welcome") { const no = { ...o, seat: m.seat }; onlineRef.current = no; setOnline(no); }
+    else if (m.t === "lobby") { const no = { ...o, names: m.names }; onlineRef.current = no; setOnline(no); }
+    else if (m.t === "full") { leaveOnline(false); setOnlineMsg("Der Tisch ist voll oder das Spiel läuft schon."); setModal("online"); }
+    else if (m.t === "closed") { leaveOnline(false); setOnlineMsg("Der Host hat den Tisch geschlossen."); setModal("online"); }
+    else if (m.t === "state") {
+      setGame(m.g); setSelected(null);
+      if (!o.started) { const no = { ...o, started: true }; onlineRef.current = no; setOnline(no); setModal(null); setHome(false); }
+    }
+  };
+  guestClosedRef.current = () => { if (onlineRef.current) { leaveOnline(false); setOnlineMsg("Verbindung zum Tisch verloren."); setModal("online"); } };
+
   // ── Wer spielt zusammen? ──
   if (draw) return wrap(<DrawScreen key="draw" settings={settings} deck={deck} onDone={(pre) => startNew(pre)} />);
 
@@ -2538,11 +2719,14 @@ function JassApp() {
           </div>
         </div>
         <div style={{ fontSize: 11, color: C.dim, marginTop: -8, fontFamily: CHALK_FONT }}>{settings.serie ? "Serie: Die Striche zählen weiter." : "Ohne Serie starten Punkte und Striche bei 0."}</div>
+        <button onClick={() => { setOnlineMsg(null); setModal("online"); }} style={{ ...btn(false), width: 240 }}>{online ? "Online – Tisch " + online.code : "Online spielen"}</button>
         <button onClick={() => setModal("settings")} style={{ ...btn(false), width: 240 }}>Settings</button>
         <button onClick={() => setModal("rules")} style={{ ...btn(false), width: 240 }}>Regeln</button>
         <button onClick={() => setModal("info")} style={{ ...btn(false), width: 240 }}>Info & Statistik</button>
         <div style={{ color: "rgba(240,240,232,0.55)", fontSize: 12, marginTop: 10, fontFamily: CHALK_FONT }}>v{APP_VERSION}</div>
         </div>
+        {modal === "online" && <OnlineModal online={online} msg={onlineMsg} names={isHost ? onlineNamesFor(online) : online && online.names} defaultName={(settings.names && (settings.names[0] || "").trim()) || ""}
+          onOpen={hostOpen} onJoin={guestJoin} onStart={hostStart} onLeave={() => leaveOnline(true)} onClose={() => { if (!online) setModal(null); else setModal(null); }} />}
         {modal === "settings" && <SettingsModal settings={settings} setSettings={setSettings} onImages={() => setModal("images")} onClose={() => setModal(null)} />}
         {modal === "rules" && <RulesModal deck={deck} onClose={() => setModal(null)} />}
         {modal === "info" && <InfoModal stats={stats} onReset={() => setStats({ played: 0, won: 0, rounds: 0, matches: 0 })} onClose={() => setModal(null)} />}
@@ -2832,7 +3016,7 @@ function JassApp() {
       </div>
 
       {/* Tisch */}
-      <div onClick={() => { if (deal) return; if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone") sweepCollect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
+      <div onClick={() => { if (deal) return; if (manual) { const st = botStep(game); if (st) st(); } else if (r.phase === "trickDone" && !isGuest) sweepCollect(game); }} style={{ flex: 1, position: "relative", maxWidth: MAXW, width: "100%", margin: "0 auto", minHeight: 0 }}>
         <Seat p={2} style={{ top: 10, left: "50%", transform: "translateX(-50%)" }} />
         {game.lastRound && game.lastRound.tricks.length > 0 && (
           <button onClick={(ev) => { ev.stopPropagation(); setReplay(true); }} title="Letzte Runde nochmals abspielen"
@@ -2923,24 +3107,26 @@ function JassApp() {
 
       {menu && (
         <Menu onClose={() => setMenu(false)} items={[
-          ["Neues Spiel", () => setModal("neu")],
+          online ? null : ["Neues Spiel", () => setModal("neu")],
           ["Jasstafel", () => setModal("tafel")],
           r.lastTrick ? ["Letzter Stich", () => setModal("last")] : null,
           ["Settings", () => setModal("settings")],
           ["Regeln", () => setModal("rules")],
           ["Info & Statistik", () => setModal("info")],
-          ["Zum Startbildschirm", () => setHome(true)],
+          online ? [isHost ? "Tisch schliessen" : "Tisch verlassen", () => { if (window.confirm(isHost ? "Tisch schliessen? Alle Mitspieler werden getrennt." : "Tisch verlassen?")) leaveOnline(true); }] : null,
+          online && !isGuest ? ["Zum Startbildschirm", () => setHome(true)] : null,
+          online ? null : ["Zum Startbildschirm", () => setHome(true)],
         ]} />
       )}
       {deal && <DealAnim key={deal.key} w={Math.round(cw * 0.55)} origin={deal.origin} start={deal.start} />}
       {weisAsk && <WeisAskModal ws={E.findWeis(r.start[0])} deck={deck} onAnswer={answerWeis} />}
       {claimAnim && <ClaimAnim key={claimAnim.key} pile={claimAnim.pile} nTrick={claimAnim.nTrick} p={claimAnim.p} deck={deck} trump={r.trump} w={tw} />}
-      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} serie={!!settings.serie} onNext={goNextRound} onSerieEnd={() => { setEndHidden(false); setModal("serieEnd"); }} />}
+      {r.phase === "roundEnd" && !modal && !endHidden && !claimAnim && <RoundEndModal game={game} deck={deck} onClaim={() => setModal("claim")} onTafel={() => setModal("tafel")} onClose={() => setEndHidden(true)} waiting={isGuest} serie={!!settings.serie && !online} onNext={goNextRound} onSerieEnd={() => { setEndHidden(false); setModal("serieEnd"); }} />}
       {r.phase === "roundEnd" && endHidden && !claimAnim && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", display: "flex", justifyContent: "center", gap: 8, zIndex: 30 }}>
           <button onClick={() => setEndHidden(false)} style={{ ...btn(false), background: "rgba(10,30,22,0.92)" }}>Abrechnung</button>
-          <button onClick={goNextRound} style={btn(true)}>{!game.over ? "Nächste Runde" : settings.serie ? "Serie fortsetzen" : "Neues Spiel"}</button>
-          {game.over && settings.serie && <button onClick={() => setModal("serieEnd")} style={btn(false)}>Serie beenden</button>}
+          {!isGuest && <button onClick={goNextRound} style={btn(true)}>{!game.over ? "Nächste Runde" : settings.serie && !online ? "Serie fortsetzen" : "Neues Spiel"}</button>}
+          {game.over && settings.serie && !online && <button onClick={() => setModal("serieEnd")} style={btn(false)}>Serie beenden</button>}
         </div>
       )}
       {modal === "neu" && (
