@@ -4,9 +4,15 @@
 const { useState, useEffect, useRef, useContext } = React;
 const E = window.JassEngine;
 
-const APP_VERSION = "3.0.0";
+const APP_VERSION = "3.1.0";
 
 const CHANGELOG = [
+  {
+    version: "3.1.0",
+    changes: [
+      "Französische Karten (Settings → Karten → F) jetzt mit richtigen Kartenbildern (36 Blatt, 6 bis Ass): «Vector Playing Cards» von Byron Knoll, gemeinfrei. Eigene Bilder gehen weiterhin vor",
+    ],
+  },
   {
     version: "3.0.0",
     changes: [
@@ -595,13 +601,17 @@ function ModeIcon({ t, deck, size }) {
   return <span style={{ fontSize: size * 0.8, fontWeight: 800, color: C.gold, lineHeight: 1 }}>{t === 4 ? "▲" : "▼"}</span>;
 }
 
+// Dateinamen der mitgelieferten französischen Karten: Rang + Farbe (Ecken = D, Herz = H, Schaufel = S, Kreuz = C)
+const FR_RANK = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"], FR_SUIT = ["D", "H", "S", "C"];
 function Card({ id, deck, w, onClick, dim, raised, trump }) {
   const s = E.suitOf(id), r = E.rankOf(id);
   const h = Math.round(w * 1.5);
   const label = RANK_LABEL[deck][r];
   const col = deck === "fr" && s < 2 ? C.red : "#1a1a1a";
   const imgCtx = useContext(CardImgCtx);
-  const img = imgCtx.on && imgCtx.map[deck + ":" + id];
+  const own = imgCtx.on && imgCtx.map[deck + ":" + id];
+  // Französische Karten: eigene Bilder gehen vor, sonst die mitgelieferten (gemeinfrei, cards-fr/)
+  const img = own || (deck === "fr" ? "cards-fr/" + FR_RANK[r] + FR_SUIT[s] + ".webp" : null);
   if (img) {
     return (
       <div onClick={onClick} style={{
@@ -612,8 +622,8 @@ function Card({ id, deck, w, onClick, dim, raised, trump }) {
         userSelect: "none", WebkitUserSelect: "none",
         transform: raised ? "translateY(-14px)" : "none", transition: "transform 0.12s", textShadow: "none",
       }}>
-        <img src={img} draggable={false} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }} />
-        {imgCtx.index && (
+        <img src={img} draggable={false} alt="" style={{ width: "100%", height: "100%", objectFit: own ? "cover" : "fill", display: "block", pointerEvents: "none" }} />
+        {imgCtx.index && own && (
           <div style={{ position: "absolute", left: 2, top: 2, background: "rgba(255,255,255,0.88)", borderRadius: 4, padding: "1px 2px", display: "flex", flexDirection: "column", alignItems: "center", pointerEvents: "none" }}>
             <span style={{ fontSize: w * 0.22, fontWeight: 800, color: col, lineHeight: 1, fontFamily: "Georgia, serif" }}>{label}</span>
             <SuitIcon s={s} deck={deck} size={w * 0.18} />
@@ -2088,6 +2098,7 @@ function InfoModal({ stats, onReset, onClose }) {
         <div>Runden: {stats.rounds} · Matches: {stats.matches}</div>
         <button onClick={() => { if (window.confirm("Statistik auf 0 zurücksetzen?")) onReset(); }} style={{ ...btn(false), padding: "5px 12px", fontSize: 13, marginTop: 8 }}>Statistik zurücksetzen</button>
       </div>
+      <div style={{ fontSize: 12, color: C.dim, marginBottom: 14 }}>Französische Karten: «Vector Playing Cards» von Byron Knoll (gemeinfrei), SVG-Sammlung von Peter Tripp.</div>
       <div style={{ fontWeight: 800, color: C.gold, marginBottom: 6 }}>Änderungen</div>
       {CHANGELOG.map((e) => (
         <div key={e.version} style={{ marginBottom: 10 }}>

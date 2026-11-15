@@ -1,0 +1,4 @@
+Französische Karten (36 Blatt, 6 bis Ass)
+Quelle: «Vector Playing Cards» von Byron Knoll (code.google.com/archive/p/vector-playing-cards),
+SVG-Sammlung von Peter Tripp (github.com/notpeter/Vector-Playing-Cards).
+Lizenz: gemeinfrei (Public Domain), alternativ WTFPL. Hier als WebP (300 px breit) umgewandelt.
