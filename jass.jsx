@@ -1560,6 +1560,7 @@ function Choice({ value, options, onChange }) {
 // Eine JSON-Datei mit allen "jass:"-Einträgen (Einstellungen, Spiel, Statistik,
 // Striche) und den eigenen Kartenbildern inkl. Rückseite aus IndexedDB.
 // Zum Übertragen auf ein anderes eigenes Gerät (AirDrop, Dateien-App …).
+let lastExportInfo = "";
 async function exportBackup() {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
@@ -1568,6 +1569,7 @@ async function exportBackup() {
   }
   let images = {};
   try { images = await imgAll(); } catch (e) {}
+  lastExportInfo = Object.keys(images).length + " Bilder, " + Object.keys(images).filter((k) => k.startsWith("icon:")).length + " Farbsymbole";
   const backup = { app: "jass", format: 1, created: new Date().toISOString(), localStorage: data, images };
   // Dateiname «Backup Jass_Datum_Zeit» (lokale Zeit); eigene Endung und neutraler Typ, damit das
   // Betriebssystem es nicht als Text-/JSON-Datei öffnet (Inhalt bleibt intern JSON)
@@ -1595,7 +1597,8 @@ async function importBackup(file) {
   Object.entries(b.localStorage).forEach(([k, v]) => { if (k.startsWith("jass:")) localStorage.setItem(k, v); });
   const imgs = b.images || {};
   await imgWrite((st) => { st.clear(); Object.entries(imgs).forEach(([k, v]) => st.put(v, k)); });
-  return Object.keys(imgs).length;
+  const n = Object.keys(imgs).length, ic = Object.keys(imgs).filter((k) => k.startsWith("icon:")).length;
+  return n + " Bilder, " + ic + " Farbsymbole";
 }
 
 function BackupRow() {
@@ -1606,7 +1609,7 @@ function BackupRow() {
     setMsg("Erstelle Backup…");
     try {
       const r = await exportBackup();
-      setMsg(r === "abgebrochen" ? null : r === "geteilt" ? "Backup geteilt." : "Backup-Datei gespeichert (Downloads).");
+      setMsg(r === "abgebrochen" ? null : (r === "geteilt" ? "Backup geteilt" : "Backup-Datei gespeichert (Downloads)") + " – " + lastExportInfo + ".");
     } catch (e) { setMsg("Fehler: " + (e.message || e)); }
   };
   const doImport = async (ev) => {
@@ -1616,7 +1619,7 @@ function BackupRow() {
     if (!window.confirm("Backup laden? Settings, Spielstand, Statistik, Striche und eigene Kartenbilder auf diesem Gerät werden ersetzt.")) return;
     try {
       const n = await importBackup(f);
-      setMsg("Backup geladen (" + n + " Bilder). Die App startet neu…");
+      setMsg("Backup geladen (" + n + "). Die App startet neu…");
       setTimeout(() => location.reload(), 900);
     } catch (e) { setMsg("Fehler: " + (e.message || e)); }
   };
