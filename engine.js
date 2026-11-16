@@ -642,10 +642,57 @@
     return best;
   }
 
+  // Kurze Begründung, warum die Karte c gespielt wurde (für den Lernmodus «Offene Karten»).
+  // Beurteilt die Karte nachträglich aus der Spielsituation – gilt für Stufe «Normal» und «Stark».
+  // ctx wie bei botPlay: { hand, trick, t, p, tricks }
+  function explainPlay(ctx, c) {
+    const { hand, trick, t, p } = ctx;
+    const played = [];
+    (ctx.tricks || []).forEach((tr) => tr.forEach((e) => played.push(e.c)));
+    const inTrick = trick.map((e) => e.c);
+    const unknown = ALL.filter((x) => !played.includes(x) && !hand.includes(x) && !inTrick.includes(x));
+    const trumpOut = t < 4 && unknown.some((u) => isTrump(u, t));
+    const isBock = (card) => (isTrump(card, t)
+      ? !unknown.some((u) => isTrump(u, t) && TRUMP_STR[rankOf(u)] > TRUMP_STR[rankOf(card)])
+      : !unknown.some((u) => suitOf(u) === suitOf(card) && plainStr(rankOf(u), t) > plainStr(rankOf(card), t)));
+    const partner = (p + 2) % 4;
+    const tr = isTrump(c, t);
+    // Ausspielen
+    if (!trick.length) {
+      if (tr) return isBock(c) ? "Spielt den höchsten Trumpf aus, um die Trümpfe der Gegner zu ziehen" : "Spielt Trumpf aus, um die Trümpfe der Gegner zu ziehen";
+      if (isBock(c) && !trumpOut) return "Spielt einen Bock (höchste Karte der Farbe, kein Trumpf mehr draussen) – sicherer Stich";
+      if (isBock(c)) return "Spielt die höchste Karte der Farbe aus – meist ein sicherer Stich";
+      if (points(c, t) === 0 || points(c, t) <= 4) return "Spielt eine tiefe Karte aus, ohne viele Punkte zu riskieren";
+      return "Spielt diese Farbe aus";
+    }
+    const led = suitOf(trick[0].c);
+    const cur = trick.concat([{ p, c }]);
+    const iWin = cur[trickWinnerIdx(cur, t)].p === p;
+    const curWinner = trick[trickWinnerIdx(trick, t)].p;
+    const last = trick.length === 3;
+    const follow = suitOf(c) === led || (isTrump(trick[0].c, t) && tr);
+    if (iWin) {
+      if (tr && !isTrump(trick[0].c, t)) return last ? "Sticht als Letzter mit Trumpf – der Stich ist sicher" : "Sticht mit Trumpf, um den Stich zu holen";
+      if (isBock(c)) return "Gewinnt den Stich mit dem Bock (höchste Karte der Farbe)";
+      return last ? "Gewinnt den Stich als Letzter mit der Karte, die gerade reicht" : "Gewinnt den Stich mit einer hohen Karte";
+    }
+    if (curWinner === partner) {
+      if (!follow && !tr) return "Der Partner holt den Stich – verwirft eine schwache Farbe";
+      if (points(c, t) >= 10) return "Der Partner holt den Stich – schmiert ihm Punkte zu";
+      return "Der Partner holt den Stich – gibt eine tiefe Karte";
+    }
+    if (!follow && !tr) {
+      const hasTrump = t < 4 && hand.some((x) => isTrump(x, t));
+      return hasTrump ? "Verzichtet aufs Stechen und verwirft die schwächste Farbe" : "Hat weder Farbe noch Trumpf – verwirft die schwächste Farbe";
+    }
+    if (tr && !isTrump(trick[0].c, t)) return "Sticht, kann den Stich aber nicht sicher gewinnen";
+    return "Kann den Stich nicht gewinnen – gibt die tiefste Karte, um nichts zu verschenken";
+  }
+
   const api = {
     OBE, UNDE, ALL, suitOf, rankOf, team, points, isTrump, power, trickWinnerIdx, legalCards,
     findWeis, resolveWeis, findStoeck, multiplier, deal, shuffle, sortHand, evalTrump,
-    botChooseTrump, rollout, sampleHands, makeRng, botPlay, botPlaySmart, botChooseTrumpSmart, inferVoids, signals, knownFromWeis, weisCards, scoreRound, applyScore, SEQ_NAME, TRUMP_STR,
+    botChooseTrump, explainPlay, rollout, sampleHands, makeRng, botPlay, botPlaySmart, botChooseTrumpSmart, inferVoids, signals, knownFromWeis, weisCards, scoreRound, applyScore, SEQ_NAME, TRUMP_STR,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.JassEngine = api;

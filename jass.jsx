@@ -2377,6 +2377,7 @@ function JassApp() {
   const [modal, setModal] = useState(null);
   const [menu, setMenu] = useState(false);
   const [toast, setToast] = useState(null);
+  const [why, setWhy] = useState(null); // Lernmodus: Begründung des letzten Computer-Zugs { p, text, key }
   const [selected, setSelected] = useState(null);
   const [endHidden, setEndHidden] = useState(false); // Rundenabrechnung zugeklappt
   const [drag, setDrag] = useState(null); // Wischen: { c, x0, y0, dx, dy, moved }
@@ -2551,6 +2552,7 @@ function JassApp() {
       const ctx = { hand: r.hands[r.turn], trick: r.trick, t: r.trump, played: r.played, p: r.turn, declarer: r.chooser, tricks: r.tricksLog, tricksWon: r.tricks, weis: r.weis, endgame };
       // Ältere Spielstände ohne Stichverlauf: Heuristik verwenden
       const c = settings.level !== "normal" && r.tricksLog && r.tricksLog.length === r.trickNo ? E.botPlaySmart(ctx) : E.botPlay(ctx);
+      if (settings.openCards) setWhy({ p: r.turn, text: E.explainPlay(ctx, c), key: Date.now() });
       play(g, r.turn, c);
     };
     if (r.phase === "trickDone") return () => sweepCollect(g);
@@ -3087,6 +3089,11 @@ function JassApp() {
               style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
           )}
         </div>
+        {settings.openCards && why && r.phase !== "roundEnd" && r.phase !== "choose" && (
+          <div key={why.key} style={{ position: "absolute", top: "31%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.6)", padding: "6px 12px", borderRadius: 12, fontSize: 12.5 * uiK, maxWidth: "74%", textAlign: "center", lineHeight: 1.35, pointerEvents: "none", zIndex: 4 }}>
+            <b style={{ color: C.gold }}>{NAMES[why.p]}:</b> {why.text}
+          </div>
+        )}
         {toast && (
           <div style={{ position: "absolute", top: "24%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "8px 14px", borderRadius: 12, fontSize: 14 * uiK, fontWeight: 600, maxWidth: "86%", textAlign: "center", zIndex: 20, pointerEvents: "none" }}>{toast}</div>
         )}
