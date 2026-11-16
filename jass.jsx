@@ -2930,15 +2930,18 @@ function JassApp() {
   };
 
   // Lernmodus: Hand eines Mitspielers offen und klein
-  const OpenHand = ({ cards }) => {
-    const mw = Math.round(26 * uiK), st = Math.round(9 * uiK);
+  const OpenHand = ({ cards, three }) => {
+    // Links/Rechts in 3 Reihen à 3 Karten (schmaler), alle etwas weniger überlappend
+    const mw = Math.round(26 * uiK), st = Math.round(13 * uiK), mh = Math.round(mw * 1.5), off = Math.round(mh * 0.5);
+    const rows = three && cards.length > 3 ? Array.from({ length: Math.ceil(cards.length / 3) }, (_, k) => cards.slice(k * 3, k * 3 + 3)) : [cards];
+    const maxLen = Math.max(...rows.map((x) => x.length));
     return (
-      <div style={{ position: "relative", width: mw + st * (cards.length - 1), height: Math.round(mw * 1.5), marginTop: 3 }}>
-        {cards.map((c, i) => (
-          <div key={c} style={{ position: "absolute", left: i * st, top: 0, zIndex: i }}>
+      <div style={{ position: "relative", width: mw + st * (maxLen - 1), height: mh + (rows.length - 1) * off, marginTop: 3 }}>
+        {rows.flatMap((row, ri) => row.map((c, k) => (
+          <div key={c} style={{ position: "absolute", left: k * st, top: ri * off, zIndex: ri * 20 + k }}>
             <Card id={c} deck={deck} w={mw} trump={r.trump != null && E.isTrump(c, r.trump)} />
           </div>
-        ))}
+        )))}
       </div>
     );
   };
@@ -2991,7 +2994,7 @@ function JassApp() {
           </div>
           </>
         )}
-        {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} />}
+        {!big && settings.openCards && r.hands[p].length > 0 && <OpenHand three={p === 1 || p === 3} cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} />}
         {p !== 2 && <WeisChips p={p} align={p === 3 ? "flex-start" : p === 1 ? "flex-end" : "center"} />}
         {wonBy[p] > 0 && <div style={{ marginTop: 4 }}><TrickPile n={wonBy[p]} w={pileW} /></div>}
       </div>
