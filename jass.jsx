@@ -3102,12 +3102,6 @@ function JassApp() {
               style={{ ...btn(false), padding: "6px 10px", fontSize: 12 }}>Bedanken</button>
           )}
         </div>
-        {settings.openCards && why && r.phase !== "roundEnd" && r.phase !== "choose" && (
-          <div key={why.key} style={{ position: "absolute", top: "21%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.6)", padding: "6px 12px", borderRadius: 12, fontSize: 12.5 * uiK, maxWidth: "74%", textAlign: "center", lineHeight: 1.35, pointerEvents: "none", zIndex: 4 }}>
-            <b style={{ color: C.gold }}>{NAMES[why.p]}:</b> {why.text}
-            {why.sim && <div style={{ fontSize: 11 * uiK, color: C.dim, marginTop: 3 }}>{why.sim}</div>}
-          </div>
-        )}
         {toast && (
           <div style={{ position: "absolute", top: "24%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "8px 14px", borderRadius: 12, fontSize: 14 * uiK, fontWeight: 600, maxWidth: "86%", textAlign: "center", zIndex: 20, pointerEvents: "none" }}>{toast}</div>
         )}
@@ -3139,6 +3133,17 @@ function JassApp() {
         </div>
       )}
 
+      {/* Lernmodus: Begründung des letzten Computer-Zugs, ganze Breite zwischen Tisch und eigener Hand */}
+      {settings.openCards && (
+        <div style={{ width: "100%", boxSizing: "border-box", minHeight: Math.round(64 * uiK), padding: "6px 12px", background: "rgba(0,0,0,0.5)", borderTop: "1px solid " + C.line, borderBottom: "1px solid " + C.line, fontSize: 13 * uiK, lineHeight: 1.35, textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          {why && r.phase !== "roundEnd" && r.phase !== "choose" ? (
+            <div key={why.key}>
+              <b style={{ color: C.gold }}>{NAMES[why.p]}:</b> {why.text}
+              {why.sim && <div style={{ fontSize: 11.5 * uiK, color: C.dim, marginTop: 3 }}>{why.sim}</div>}
+            </div>
+          ) : <div style={{ color: C.dim, fontSize: 12 * uiK }}>Lernmodus: hier steht die Begründung für jeden Zug der Mitspieler.</div>}
+        </div>
+      )}
       {/* Status + Hand */}
       <div style={{ textAlign: "center", fontSize: 13 * uiK, color: myTurn ? C.gold : C.dim, fontWeight: myTurn ? 700 : 400, minHeight: 18 }}>{r.phase === "choose" && r.decider === 0 && !deal ? "" : status}</div>
       <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) * 0.35 + 2px)", paddingTop: 18 }}>
