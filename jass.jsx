@@ -2810,6 +2810,8 @@ function JassApp() {
   const step = fan ? Math.min(cw * 0.62, (W - 16 - cw - 110) / Math.max(1, hand.length - 1)) : twoRows ? Math.min(cwH + 4, (W - 16 - cwH) / (rowMax - 1)) : hand.length > 1 ? Math.min(cw + 4, (W - 16 - cw) / (hand.length - 1)) : 0;
   const handW = cwH + step * Math.max(0, (twoRows ? Math.max(...handRows.map((x) => x.length)) : hand.length) - 1);
   const rowOff = Math.round(cwH * 1.5 * 0.56); // Versatz der zweiten Reihe
+  // Höhere Karten liegen vor den tieferen und überdecken sie (Trumpf vor den Farben); gilt für beide Sortierrichtungen
+  const cardZ = (c) => (r.trump != null && E.isTrump(c, r.trump) ? 20 + E.TRUMP_STR[E.rankOf(c)] : r.trump === E.UNDE ? 8 - E.rankOf(c) : E.rankOf(c));
   const fanAng = 5.2, fanDrop = 1.5; // Grad je Karte und Absenkung (px × Abstand²) zum Rand
   // Trumpfwahl: Breite eines der 7 Knöpfe (Zeile max. 560/760 px, 10 px Rand, 6 px Abstand)
   const chooseIcon = Math.round(((Math.min(vw, big ? 760 : 560) - 20 - 6 * 6) / 7) * 0.82);
@@ -3151,7 +3153,7 @@ function JassApp() {
           {handRows.flatMap((row, ri) => row.map((c, i) => [c, i, ri, row.length])).map(([c, i, ri, n]) => (
             <div key={c}
               onPointerDown={(e) => dragStart(e, c)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={() => setDrag(null)}
-              style={{ position: "absolute", left: twoRows ? (handW - (cwH + step * (n - 1))) / 2 + i * step : i * step, top: ri * rowOff + (fan ? Math.round(Math.pow(i - (n - 1) / 2, 2) * fanDrop) : 0), zIndex: drag && drag.c === c ? 60 : ri * 20 + i, touchAction: playMode === "swipe" ? "none" : "auto",
+              style={{ position: "absolute", left: twoRows ? (handW - (cwH + step * (n - 1))) / 2 + i * step : i * step, top: ri * rowOff + (fan ? Math.round(Math.pow(i - (n - 1) / 2, 2) * fanDrop) : 0), zIndex: drag && drag.c === c ? 200 : ri * 100 + cardZ(c), touchAction: playMode === "swipe" ? "none" : "auto",
                 transform: drag && drag.c === c ? "translate(" + drag.dx + "px," + drag.dy + "px) rotate(" + drag.dx / 20 + "deg)" : fan ? "rotate(" + (i - (n - 1) / 2) * fanAng + "deg)" : "none",
                 transformOrigin: fan && !(drag && drag.c === c) ? "50% 150%" : undefined,
                 transition: drag && drag.c === c ? "none" : "transform 0.15s" }}>
