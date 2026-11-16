@@ -2946,8 +2946,8 @@ function JassApp() {
 
   // Lernmodus: Hand eines Mitspielers offen und klein
   const OpenHand = ({ cards, three }) => {
-    // Links/Rechts in 3 Reihen à 3 Karten (schmaler), alle etwas weniger überlappend
-    const mw = Math.round(26 * uiK), st = Math.round(13 * uiK), mh = Math.round(mw * 1.5), off = Math.round(mh * 0.5);
+    // Links/Rechts in 3 Reihen à 3 Karten, alle Karten ohne Überlappung
+    const mw = Math.round(26 * uiK), st = mw + Math.round(2 * uiK), mh = Math.round(mw * 1.5), off = mh + Math.round(2 * uiK);
     const rows = three && cards.length > 3 ? Array.from({ length: Math.ceil(cards.length / 3) }, (_, k) => cards.slice(k * 3, k * 3 + 3)) : [cards];
     const maxLen = Math.max(...rows.map((x) => x.length));
     return (
