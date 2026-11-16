@@ -571,10 +571,12 @@
     }
     let best = 0;
     for (let i = 1; i < legal.length; i++) if (score[i] > score[best]) best = i;
+    // ctx.info (optional): Ergebnis der Simulation für die Anzeige im Lernmodus
+    if (ctx.info) { ctx.info.n = budget; ctx.info.cards = legal.slice(); ctx.info.avg = score.map((x) => x / budget); ctx.info.conv = false; }
     const conv = conventionCard(ctx, played);
     if (conv != null) {
       const ci = legal.indexOf(conv);
-      if (ci >= 0 && score[ci] >= score[best] - CONV_TOL * budget) return conv;
+      if (ci >= 0 && score[ci] >= score[best] - CONV_TOL * budget) { if (ctx.info) ctx.info.conv = ci !== best; return conv; }
     }
     return legal[best];
   }
