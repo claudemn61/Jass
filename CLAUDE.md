@@ -64,7 +64,7 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
   `bea-jass-<CODE>`, Skript lazy von jsdelivr) – austauschbar, `window.JASS_NET = "mock"` = BroadcastChannel für lokale Tests
   (zwei Tabs im selben Browser). Online abgeschaltet: Bedanken (`THANK = "aus"`), Weis-Rückfrage, `claimOn`, Austeil-Animation,
   Tempo «Manuell». Gäste speichern den fremden Spielstand nicht (`save("game")` übersprungen).
-- Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`).
+- Persistenz: `localStorage` mit Präfix `jass:` (`settings`, `game`, `stats`, `striche`, `serie`).
 - Eigene Kartenbilder (z.B. Scans von AGMüller-Karten): **nur lokal im Gerät** in IndexedDB
   `jass-bilder`, niemals ins Repo (urheberrechtlich geschützt, Repo ist öffentlich).
 - Eigene Farbsymbole: IndexedDB-Keys `icon:<deck>:<farbe>`, `icon:obe`, `icon:unde`; `SuitIcon`/`ModeIcon`
@@ -86,3 +86,51 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
 ## Vorgehen
 - Syntax mit echtem JSX-Transformer (z.B. `sucrase`) prüfen; Engine-Änderungen mit `node tests/sim.js`.
 - Keine neuen Abhängigkeiten/Build-Tools.
+
+## Arbeitsstand (Session-Zusammenfassung, Stand v3.1.0)
+
+Dateien: `jass.jsx` (UI/Ablauf, ~3200 Zeilen), `engine.js` (Logik, Bots, `explainPlay`), `online.js` (Online-Spiel), `sw.js`
+(Offline-Cache, `CACHE_VERSION` bei neuen Dateien erhöhen), `cards-fr/` (36 französische Karten als WebP, gemeinfrei, `LIZENZ.txt`),
+`tests/` (`sim`, `strength`, `duel`, `claim`, `weis`, `draw`, `online`).
+
+### Wie der Nutzer arbeitet
+- Kurze Korrekturen und Screenshots vom iPhone (Bildbreite ≈ 2,4× pt). «V-» = kein Versions-Bump, sonst Stufe wählen; trotzdem immer
+  committen, pushen und nach `main` mergen. Einzelne Rückfragen nur bei echter Mehrdeutigkeit.
+- Wünsche sind wörtlich gemeint («identisch», «Titel ganz links», «oben 4, unten 5»); bei Korrektur den letzten Schritt anpassen, nicht neu diskutieren.
+- Prüfen wie bisher: `sucrase` (JSX-Syntax), `node tests/*.js`, Browser-Test mit Playwright: CDN-Skripte (`react`, `react-dom`, `@babel/standalone`)
+  per `page.route` auf lokale `node_modules` umleiten, `python3 -m http.server`, Spielzustände per `localStorage` («jass:game», «jass:settings»)
+  einspielen, Screenshot im 390×844-Viewport ansehen. Playwright-Selektor `text=…` trifft Teilstrings (bei «Beitreten» den Button genau wählen).
+- Urheberrecht: Eigene Kartenbilder (AGMüller-Scans) und Backup-Dateien (`*.jass`) enthalten Scans → **nie ins Repo**, nie veröffentlichen.
+  Mitgelieferte Bilder nur gemeinfrei/eigen (Filz/Schiefer-Fotos des Nutzers, Vector Playing Cards von Byron Knoll).
+
+### Entscheidungen und Gründe (nicht erneut diskutieren)
+- **Settings**: eine Einstellung pro Zeile (Titel links, Knöpfe dahinter), Gruppen Spiel / Mitspieler / Ablauf / Karten & Anzeige / Daten;
+  Knopf «Standard» in der Titelzeile (`STANDARD_SETTINGS`, lässt Namen, Bilder, Serie unberührt). Mitspieler: Fest/Zufällig/Ziehen (eine Auswahl).
+  Karte spielen: nur Tippen/Wischen. Bedanken: Manuell/Auto/Aus.
+- **Serie** statt «Jassabend»: Haken bei «Neues Spiel» (bleibt gesetzt); mit Haken zählen Striche weiter, ohne Haken Reset. Nach Spielende
+  «Serie fortsetzen/beenden» mit Gesamtresultat (`SerieModal`); Jasstafel-Reiter «Serie» (alle Runden aller Spiele).
+- **Weis**: gültiger Weis wird nach dem ersten Stich sofort geschrieben (Kopfzeile + Jasstafel, `weisLive`), `game.scores` erst am Rundenende;
+  in Abrechnung/Runden steht der Weis-Anteil in Klammern; Tippen auf eine Runde in Jasstafel → Replay (`entry.rec`).
+- **Hand (iPhone)**: Kartenreihen 1 / 2 (Teilung möglichst an der Farbgrenze, je Reihe ≤ 6, nie 2/7) / Fächer (gebeugt). Überlappung wie echte
+  Karten: «Li→Re» linke Karte vorne, «Re→Li» rechte Karte vorne (nicht nach Kartenwert). Hand nahe am unteren Rand.
+- **Titelzeile**: iOS legt am oberen Rand einen Unschärfe-Effekt über Inhalt in der Nähe der Statusleiste → Inhalt nicht höher setzen
+  (`safe-area-inset-top + 10px`). «Wir» ganz links, «Gegner» ganz rechts; Trumpf nur in der Mitte bei «Trumpf oben/Beides»
+  (dann Zeile so hoch wie nötig, sonst schmal).
+- **Trumpf-Anzeige** (`trumpAt`: oben/spieler/beides): beim Spieler ausserhalb der Namenskachel – Links/Rechts darüber, Partner links daneben
+  (Weis rechts daneben), eigener Trumpf links, eigener Weis rechts der gesammelten Stiche; «Letzter Stich» unter der Jasstafel; gelber Stern.
+- **Lernmodus «Offene Karten»**: offene Hände (Partner 1 Reihe, Links/Rechts 3×3, ohne Überlappung) und pro Computer-Zug eine Begründung
+  (`E.explainPlay`, nachträgliche Beurteilung) plus bei «Stark» das Simulationsergebnis (`ctx.info` aus `botPlaySmart`: Ø Punktunterschied je
+  Karte, ▶ = gespielt, «Partnerregel geht vor»), Feld in ganzer Breite zwischen Tisch und Hand.
+- **Französische Karten**: mitgelieferte Bilder (`FR_RANK`/`FR_SUIT`, Dateiname `<Rang><D|H|S|C>.webp`), eigene Bilder gehen vor; Dame/Bube mit
+  «D»/«B» statt Q/J (Text in der SVG-Quelle geändert, dann gerastert); Karten werden vorgeladen (`preloadFr`), sonst erscheinen sie verzögert;
+  Farbsymbole auf weissem Feld. Quelle/Lizenz: siehe `cards-fr/LIZENZ.txt` und Info-Dialog.
+- **Strategie**: Pflichtwahl nach dem Schieben vorsichtig (Konter-Match-Strafe), Rosen/Eicheln-Regel (`CHEAP_*`); «Weiterspielen» ist grau,
+  wenn kein Spiel läuft.
+- **Online** (v3.0.0, Major): siehe Abschnitt «Online-Spiel» oben. Bisher nur mit dem Test-Transport (`window.JASS_NET = "mock"`) geprüft, **nicht**
+  über echtes Internet/PeerJS; kein Bedanken, keine Weis-Rückfrage, kein Auflegen aller Böcke, keine Austeil-Animation online.
+
+### Offen / Ideen
+- Echten Online-Test mit zwei Geräten (PeerJS, ohne TURN evtl. Verbindungsprobleme) und Fehlerfälle (Tisch voll, Host schliesst).
+- Angebot nicht umgesetzt: Bedanken im ersten Stich an die Ausmachregel (Stöck–Weis–Stich) angleichen, optional früher Stöck-Anspruch.
+- Begründung im Lernmodus erklärt nur Kartenspiel, nicht Trumpfwahl/Weisen.
+- Normal-Stufe: Pflichtwahl-Vorsicht nur bei «Stark» (keine Faustregel gefunden).
