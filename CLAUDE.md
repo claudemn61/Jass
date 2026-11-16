@@ -57,7 +57,7 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
 - Einstellung `thank` (Bedanken): `knopf` | `auto` | `aus`, Modulvariable `THANK` in `jass.jsx`.
 - Offene Karten (Einstellung `openCards`): Lernmodus, nur Anzeige für den Menschen; die
   Computer erhalten diese Information nicht.
-- Online-Spiel (`online.js`, `window.JassOnline`; Test: `node tests/online.js`): Host-autoritativ. Der Host führt das Spiel wie bisher
+- Online-Spiel (`online.js`, `window.JassOnline`; Tests: `node tests/online.js` (Sitz-Drehung, ohne Browser) und `node tests/e2e-online.js` (Browser: Host + 2 Gäste, braucht `playwright`; ohne Netz `JASS_NM=<Ordner node_modules mit react, react-dom, @babel/standalone>`, bei globalem Playwright `NODE_PATH=$(npm root -g)`)): Host-autoritativ. Der Host führt das Spiel wie bisher
   (Computer füllen freie Sitze, `humanSeat()` in `jass.jsx`) und sendet jedem Gast bei jeder Änderung `viewFor(game, seat)`:
   alle Sitz-Felder auf den Gast gedreht (Gast = Sitz 0), Teams bei ungeradem Sitz vertauscht, fremde Hände mit -1 maskiert.
   Gäste senden nur Aktionen (`play`/`choose`/`push`), der Host prüft sie mit `checkAction`. Transport: PeerJS (WebRTC,
@@ -91,7 +91,7 @@ Bea’s Jass (Schieber-Jass als PWA) von claudemn61, gleiches Architekturmuster 
 
 Dateien: `jass.jsx` (UI/Ablauf, ~3200 Zeilen), `engine.js` (Logik, Bots, `explainPlay`), `online.js` (Online-Spiel), `sw.js`
 (Offline-Cache, `CACHE_VERSION` bei neuen Dateien erhöhen), `cards-fr/` (36 französische Karten als WebP, gemeinfrei, `LIZENZ.txt`),
-`tests/` (`sim`, `strength`, `duel`, `claim`, `weis`, `draw`, `online`).
+`tests/` (`sim`, `strength`, `duel`, `claim`, `weis`, `draw`, `online`, `e2e-online`).
 
 ### Wie der Nutzer arbeitet
 - Kurze Korrekturen und Screenshots vom iPhone (Bildbreite ≈ 2,4× pt). «V-» = kein Versions-Bump, sonst Stufe wählen; trotzdem immer
