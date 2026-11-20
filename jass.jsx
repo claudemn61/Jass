@@ -2972,9 +2972,14 @@ function JassApp() {
     const tIcon = trumpAtSeat && isDecider ? <ModeIcon t={r.trump} deck={deck} size={Math.round(40 * uiK)} /> : null;
     // Namenskachel bleibt immer an derselben Stelle: Trumpf darüber (Links/Rechts) bzw. links daneben (Partner), Weis unten bzw. rechts daneben (Partner)
     const sideIcon = (p === 1 || p === 3) && tIcon ? <span style={{ position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)", marginBottom: 3, display: "flex" }}>{tIcon}</span> : null;
+    // iPad: Trumpf nie unter dem Kartenfächer – Partner links neben dem Fächer auf Namenshöhe, Links rechts neben dem Namen, Rechts links neben dem Namen
+    const fanW = Math.round(Math.round(34 * uiK) * 3.2);
+    const padIcon = tIcon ? (p === 2
+      ? <span style={{ position: "absolute", right: "calc(50% + " + (fanW / 2 + 8) + "px)", top: "50%", transform: "translateY(-50%)", display: "flex" }}>{tIcon}</span>
+      : <span style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", display: "flex", ...(p === 3 ? { left: "100%", marginLeft: 6 } : { right: "100%", marginRight: 6 }) }}>{tIcon}</span>) : null;
     const partnerExtras = p === 2 ? (
       <>
-        {tIcon && <span style={{ position: "absolute", right: "100%", top: "50%", transform: "translateY(-50%)", marginRight: 8, display: "flex" }}>{tIcon}</span>}
+        {tIcon && !big && <span style={{ position: "absolute", right: "100%", top: "50%", transform: "translateY(-50%)", marginRight: 8, display: "flex" }}>{tIcon}</span>}
         <div style={{ position: "absolute", left: "100%", top: 0, marginLeft: 8 }}><WeisChips p={p} align="flex-start" /></div>
       </>
     ) : null;
@@ -2988,8 +2993,8 @@ function JassApp() {
               <CardFan cards={deal ? r.hands[p].slice(0, dealtTo(p)) : r.hands[p]} faceUp={!!settings.openCards} deck={deck} trump={r.trump} w={Math.round(34 * uiK)} />
             </div>
             {/* Name unter den Karten (mit Stern bei Ansage) */}
-            <div style={{ position: "relative" }}>
-            {sideIcon}
+            <div style={{ position: "relative", zIndex: 20 }}>
+            {padIcon}
             <div style={{ padding: "2px 10px", borderRadius: 12, background: active ? C.gold : "rgba(0,0,0,0.45)", color: active ? "#1a1200" : C.text, fontSize: 14 * uiK, fontWeight: 400,
               border: curHolder === p ? "2px solid " + STICH : "1px solid " + (E.team(p) === 0 ? "rgba(244,196,48,0.5)" : C.line),
               boxShadow: curHolder === p ? "0 0 10px " + STICH : "none" }}>{NAMES[p]}{star}</div>
